@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0f1c">
+<title>冷战热斗 · IRON CURTAIN</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="app-root">
+<div id="app">
+  <header>
+    <div class="brand">
+      <span class="star-us">★</span>
+      <span class="title">冷战热斗</span>
+      <span class="subtitle">IRON CURTAIN</span>
+    </div>
+    <div class="stats">
+      <div class="stat" id="turnStat">回合 <b>1</b>/10</div>
+      <div class="stat" id="periodStat">EARLY WAR</div>
+      <div class="stat" id="defconStat">DEFCON <b>5</b></div>
+      <div class="stat" id="vpStat">VP <b class="us-vp">0</b>-<b class="ussr-vp">0</b></div>
+      <div class="stat" id="activeStat">先手 <b>苏联</b></div>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn" id="btnMusic">♪ 音乐</button>
+      <button class="ctrl-btn" id="btnFx">FX</button>
+      <button class="ctrl-btn" id="btnRules">规则</button>
+    </div>
+  </header>
+
+  <main>
+    <aside class="left-panel">
+      <div class="panel-block">
+        <h3>回合信息</h3>
+        <div id="turnInfo" class="info-list"></div>
+      </div>
+      <div class="panel-block">
+        <h3>太空竞赛</h3>
+        <div id="spaceRace" class="space-race"></div>
+      </div>
+      <div class="panel-block log-block">
+        <h3>战报</h3>
+        <div id="log" class="log-scroll"></div>
+      </div>
+    </aside>
+
+    <div id="mapArea">
+      <div id="mapWrap">
+        <div id="mapBox">
+          <svg id="mapSvg" viewBox="0 0 1000 600" preserveAspectRatio="none"></svg>
+          <div id="countryLayer"></div>
+          <div id="superpowerMarks"></div>
+          <canvas id="fxCanvas"></canvas>
+        </div>
+      </div>
+      <div id="cardDisplay" class="hidden"></div>
+      <div id="toast" class="toast"></div>
+    </div>
+
+    <aside class="right-panel">
+      <div class="panel-block">
+        <h3>行动</h3>
+        <div class="action-buttons" id="actionButtons">
+          <button class="action-btn event" id="btnEvent">事件</button>
+          <button class="action-btn ops" id="btnOps">操作</button>
+          <button class="action-btn space" id="btnSpace">太空</button>
+        </div>
+      </div>
+      <div class="panel-block">
+        <h3>美国 · USA</h3>
+        <div class="player-panel us" id="usPanel">
+          <div class="vp-track"><div class="vp-label">VP</div><div class="vp-track-bar" id="usVpTrack"></div></div>
+          <div class="ops-info"><span>军事 Ops</span><b id="usMilOps">0</b></div>
+          <div class="space-info"><span>太空</span><b id="usSpacePos">0</b></div>
+          <div class="hand-info"><span>手牌</span><b id="usHandCount">0</b></div>
+        </div>
+      </div>
+      <div class="panel-block">
+        <h3>苏联 · USSR</h3>
+        <div class="player-panel ussr" id="ussrPanel">
+          <div class="vp-track"><div class="vp-label">VP</div><div class="vp-track-bar" id="ussrVpTrack"></div></div>
+          <div class="ops-info"><span>军事 Ops</span><b id="ussrMilOps">0</b></div>
+          <div class="space-info"><span>太空</span><b id="ussrSpacePos">0</b></div>
+          <div class="hand-info"><span>手牌</span><b id="ussrHandCount">0</b></div>
+        </div>
+      </div>
+      <div class="panel-block">
+        <h3>弃牌堆 (<span id="discardCount">0</span>)</h3>
+        <div id="discardList" class="discard-list"></div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="handBar" class="hand-bar">
+    <div class="hand-label" id="handLabel">手牌</div>
+    <div id="handCards" class="hand-cards"></div>
+  </div>
+</div>
+
+<!-- Drop overlay -->
+<div id="dropOverlay" class="drop-overlay hidden">
+  <div class="drop-title">拖动 <span id="dropCardName" class="card-name"></span> 到目标区域</div>
+  <div class="drop-zones">
+    <div class="drop-zone event" data-zone="event">
+      <div class="zone-name">事件</div>
+      <div class="zone-desc" id="dropEventDesc"></div>
+    </div>
+    <div class="drop-zone ops" data-zone="ops">
+      <div class="zone-name">操作</div>
+      <div class="zone-desc">放置 / 政变 / 调整</div>
+      <div class="zone-badge" id="dropOpsBadge"></div>
+    </div>
+    <div class="drop-zone space" data-zone="space">
+      <div class="zone-name">太空竞赛</div>
+      <div class="zone-desc">推进太空竞赛</div>
+      <div class="zone-badge" id="dropSpaceBadge"></div>
+    </div>
+    <div class="drop-zone cancel" data-zone="cancel">
+      <div class="zone-name">取消</div>
+      <div class="zone-desc">回到手牌</div>
+    </div>
+  </div>
+</div>
+
+<!-- Turn overlay -->
+<div id="turnOverlay" class="turn-overlay hidden">
+  <div class="text" id="turnOverlayText"></div>
+  <div class="sub" id="turnOverlaySub"></div>
+</div>
+
+<!-- Turn selection initial modal -->
+<div id="turnSelect" class="modal-screen hidden">
+  <div class="modal">
+    <h2>冷战热斗</h2>
+    <div class="subtitle">TWILIGHT STRUGGLE · 起始掷骰</div>
+    <div class="section-label">游戏模式</div>
+    <div class="mode-row">
+      <button class="opt-btn selected" data-mode="hotseat">热座双人</button>
+      <button class="opt-btn" data-mode="ai">人机对战</button>
+    </div>
+    <div class="section-label">玩家阵营</div>
+    <div class="mode-row" id="sideRow">
+      <button class="opt-btn" data-side="us">美国</button>
+      <button class="opt-btn" data-side="ussr">苏联</button>
+      <button class="opt-btn selected" data-side="random">随机</button>
+    </div>
+    <div class="section-label">掷骰决定先手</div>
+    <div class="dice-row">
+      <button class="dice-btn us" id="btnDiceUs">美国掷骰</button>
+      <button class="dice-btn ussr" id="btnDiceUssr">苏联掷骰</button>
+    </div>
+    <div class="dice-result" id="turnDiceResult"></div>
+    <button class="btn-primary" id="btnStart">开始</button>
+  </div>
+</div>
+
+<!-- Dice overlay -->
+<div id="diceOverlay" class="dice-overlay hidden">
+  <div class="dice-box">
+    <div class="dice-label">掷骰</div>
+    <div class="dice-value" id="diceValue">—</div>
+    <div class="dice-result" id="diceOverlayResult"></div>
+  </div>
+</div>
+
+<!-- Realign overlay -->
+<div id="realignOverlay" class="realign-overlay hidden">
+  <div class="realign-box">
+    <div class="realign-label">调整 · REALIGN</div>
+    <div class="realign-row">
+      <div class="realign-side us">
+        <div class="rlabel">美国</div>
+        <div class="rval" id="realignUs">—</div>
+      </div>
+      <div class="realign-tug">⇄</div>
+      <div class="realign-side ussr">
+        <div class="rlabel">苏联</div>
+        <div class="rval" id="realignUssr">—</div>
+      </div>
+    </div>
+    <div class="realign-result" id="realignResult"></div>
+  </div>
+</div>
+
+<!-- Rules modal -->
+<div id="rulesModal" class="modal-screen hidden">
+  <div class="modal modal-lg">
+    <h2>核心规则</h2>
+    <div class="rules-body">
+      <h3>回合流程</h3>
+      <ol>
+        <li>主动方抽 1 张卡，补至手牌 6 张</li>
+        <li>选 1 张卡打出：事件 / 操作 / 太空</li>
+        <li>结算后补 6 张，交换主动权</li>
+        <li>另一方重复，交换后进入下一回合</li>
+      </ol>
+      <h3>操作类型</h3>
+      <ul>
+        <li><b>放置</b>：在己方影响力邻接国家 +1</li>
+        <li><b>政变</b>：掷骰 (5-6) 控制战斗国</li>
+        <li><b>调整</b>：交换双方影响力</li>
+        <li><b>军事行动</b>：非中立战斗国 = DEFCON -1</li>
+      </ul>
+      <h3>结算</h3>
+      <ul>
+        <li><b>存在</b>：≥1 影响力</li>
+        <li><b>支配</b>：≥1 影响力且非对手控制</li>
+        <li><b>控制</b>：影响力严格多于对手</li>
+      </ul>
+      <h3>胜利</h3>
+      <ul>
+        <li>控制欧洲 → 立即胜利</li>
+        <li>太空竞赛棋子到终点</li>
+        <li>回合结束 VP ≥ 10</li>
+        <li>DEFCON 1 → 核战</li>
+      </ul>
+    </div>
+    <button class="btn-primary" id="btnRulesClose">关闭</button>
+  </div>
+</div>
+
+<!-- Win/Lose modal -->
+<div id="winModal" class="modal-screen hidden">
+  <div class="modal win-modal">
+    <h1 id="winTitle">胜利</h1>
+    <p id="winMsg"></p>
+    <div class="win-stats" id="winStats"></div>
+    <button class="btn-primary" onclick="location.reload()">再来一局</button>
+  </div>
+</div>
+
+<!-- Nuclear modal -->
+<div id="nukeModal" class="modal-screen nuke-screen hidden">
+  <div class="modal nuke-modal">
+    <h1>核战</h1>
+    <p>DEFCON 1 · 相互确保摧毁</p>
+    <button class="btn-primary" onclick="location.reload()">重新开始</button>
+  </div>
+</div>
+
+<!-- Ghost card for dragging -->
+<div id="ghostCard" class="ghost-card hidden"></div>
+
+<script src="data.js"></script>
+<script src="map.js"></script>
+<script src="fx.js"></script>
+<script src="music.js"></script>
+<script src="engine.js"></script>
+<script src="ui.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
