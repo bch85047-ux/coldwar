@@ -154,6 +154,8 @@ function regionDomination(player, regionId){
 function regionControl(player, regionId){
   const list = REGION_COUNTRIES[regionId]||[];
   if(!list.length) return false;
+  // 控制 = 支配整个区域 + 每个国家影响力不低于对手
+  if(!regionDomination(player, regionId)) return false;
   return list.every(cid => isControlled(player, cid));
 }
 function placeCost(player, cid){
@@ -202,19 +204,21 @@ function scoreRegion(regionId, card){
   if(regionId === 'europe' && ctl.us)   return {regionId, scores, winner:'us',   autoWin:true, detail:{pres,dom,ctl}};
   if(regionId === 'europe' && ctl.ussr) return {regionId, scores, winner:'ussr', autoWin:true, detail:{pres,dom,ctl}};
 
+  // 每控制一个【战地国】+1 VP
   let usCtrl = 0, ussrCtrl = 0;
   for(const cid of countries){
-    if(COUNTRIES[cid].superpower) continue;
+    const c = COUNTRIES[cid];
+    if(!c.battleground) continue;
     if(isControlled('us', cid)) usCtrl++;
     if(isControlled('ussr', cid)) ussrCtrl++;
   }
   scores.us += usCtrl;
   scores.ussr += ussrCtrl;
 
-  // 非战地国、紧邻对手超级大国 → 各 +1
+  // 控制的国家【紧邻对手超级大国】→ 各 +1 VP（含战地国）
   for(const cid of countries){
     const c = COUNTRIES[cid];
-    if(c.superpower || c.battleground) continue;
+    if(c.superpower) continue;
     if(isControlled('us', cid) && hasAdjInf('ussr', cid)) scores.us++;
     if(isControlled('ussr', cid) && hasAdjInf('us', cid)) scores.ussr++;
   }
