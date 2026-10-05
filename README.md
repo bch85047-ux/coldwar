@@ -2,6 +2,20 @@
 
 纯前端可玩的《Twilight Struggle / 冷战热斗》网页版。零依赖，无 CDN，无构建步骤 —— 打开 `index.html` 就能玩。
 
+全 JS 手写，无 React/Vue。代码量 **4374 行**，14 个文件，204 KB。
+
+## 快速部署（GitHub Pages）
+
+仓库已 `git init` + commit 完成，你只需要两步：
+
+    cd coldwar
+    git remote add origin git@github.com:你的用户名/coldwar.git
+    git push -u origin main
+
+然后 GitHub 仓库 → Settings → Pages → Source 选 **Deploy from branch**，分支 `main`、目录 `/ (root)`。
+
+或者跑脚本：`sh deploy.sh 你的用户名/coldwar`。详见 [DEPLOY.md](DEPLOY.md)。
+
 ## 玩法
 
 - **双人同屏（Hotseat）**：一台设备轮流操作
