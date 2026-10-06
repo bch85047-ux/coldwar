@@ -26,7 +26,7 @@ function playCard(card, mode){
   if(window.SFX) SFX.play('card');
 
   if(mode === 'space'){
-    applySpaceStep(player, 1);
+    applySpaceStep(player, spaceStepOf(card, player));
     g.pendingOpsCard = null; g.pendingOps = 0;
     afterCardPlayed();
   } else if(mode === 'ops'){
@@ -292,6 +292,24 @@ function switchActive(){
 }
 window.switchActive = switchActive;
 
+/* 回合横幅 —— 全游戏唯一一份实现，engine.endTurn 直接调。
+   两个坑：动画要强制 reflow 才会从头播；.turn-overlay 本身 pointer-events:none，
+   所以就算关闭逻辑没跑通也挡不住输入，不会卡回合。 */
+function showTurnOverlay(){
+  const ov = document.getElementById('turnOverlay');
+  if(!ov) return;
+  const t = document.getElementById('turnOverlayText');
+  const sub = document.getElementById('turnOverlaySub');
+  if(t) t.textContent = `第 ${G.turn} 回合`;
+  if(sub) sub.textContent = (G.activePlayer === 'us' ? '美国先手' : '苏联先手')
+    + ' · DEFCON ' + G.defcon;
+  ov.classList.remove('hidden', 'fade-out');
+  void ov.offsetWidth;                        // 不重排动画不会重播
+  clearTimeout(showTurnOverlay._t);
+  showTurnOverlay._t = setTimeout(() => ov.classList.add('hidden'), 1500);
+}
+window.showTurnOverlay = showTurnOverlay;
+
 /* ---------- 键盘 ---------- */
 window.addEventListener('keydown', e => {
   if(e.target && /input|textarea/i.test(e.target.tagName)) return;
@@ -367,7 +385,7 @@ function aiTurn(){
   if(window.SFX) SFX.play('card');
 
   if(mode === 'ops'){ g.phase = 'playOps'; setTimeout(() => aiDoOps(side, card), 500); }
-  else if(mode === 'space'){ applySpaceStep(side, 1); g.pendingOpsCard = null; afterCardPlayed(); }
+  else if(mode === 'space'){ applySpaceStep(side, spaceStepOf(card, side)); g.pendingOpsCard = null; afterCardPlayed(); }
   else { playEvent(card, side); g.pendingOpsCard = null; afterCardPlayed(); }
 }
 
@@ -592,9 +610,11 @@ if(document.readyState === 'loading'){
   function cmd(c){ if(typeof PROTO !== 'undefined') PROTO.cmd(c); }
   function apply(c){
     try {
+      // 命令只在房主这边执行；访客也挂了这监听，不能自己再跑一遍
+      if(typeof NET === 'undefined' || !NET.isHost()) return;
       if(!c || !c.fn) return;
-      // 只有轮到访客这一边时才受理，防止越权代打 / 乱序指令
-      if(G.activePlayer !== NET.side()){
+      // 命令来自对方，只有轮到对方那一边时才受理，防越权代打 / 乱序指令
+      if(G.activePlayer !== NET.remote()){
         if(window.toast) toast('还没轮到你');
         return;
       }

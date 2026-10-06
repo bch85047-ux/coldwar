@@ -37,10 +37,12 @@ const NET = (() => {
     }
   }
 
-  function newPC(){
-    if(pc){ try { pc.close(); } catch (e) {} }
-    pc = new RTCPeerConnection({iceServers: ICE, iceCandidatePoolSize: 4});
-    dc = pc.createDataChannel('cw', {ordered: true});
+  /* 通道只应由 offer 方创建。应答方不能自己 createDataChannel ——
+     那会得到一条永远不会打开的孤儿通道，双向都哑：
+     自己 send 不出去（readyState 一直不是 open），收到的消息也没人听。
+     应答方靠 ondatachannel 接住对方建的那条。 */
+  function attachDC(ch){
+    dc = ch;
     dc.onopen = () => { connected = true; status('已连接 · ' + room, 'on'); emit('open'); };
     dc.onclose = () => { connected = false; status('连接已断开', 'err'); emit('close'); };
     dc.onerror = () => status('通道错误', 'err');
@@ -51,6 +53,13 @@ const NET = (() => {
       // 再按消息类型派一次：cmd 由房主执行，snap/ev 由访客消费
       if(m && typeof m.t === 'string') emit(m.t, m);
     };
+  }
+
+  function newPC(){
+    if(pc){ try { pc.close(); } catch (e) {} }
+    dc = null;
+    pc = new RTCPeerConnection({iceServers: ICE, iceCandidatePoolSize: 4});
+    pc.ondatachannel = (e) => attachDC(e.channel);
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
       if(s === 'connected') { connected = true; status('已连接 · ' + room, 'on'); emit('open'); }
@@ -81,6 +90,7 @@ const NET = (() => {
 
   async function createOffer(){
     newPC();
+    attachDC(pc.createDataChannel('cw', {ordered: true}));
     await pc.setLocalDescription(await pc.createOffer({iceRestart: false}));
     const d = await fullDesc('offer');
     return enc({type: 'offer', room: room, side: mySide, role: myRole, sdp: d});
@@ -99,9 +109,13 @@ const NET = (() => {
     await pc.setRemoteDescription(new RTCSessionDescription(answerObj.sdp));
   }
 
-  /* 连接入口：role = 'host' | 'guest'，recvCode 为对端发来的码（可为空） */
-  async function connect(role, recvCode){
+  /* 连接入口：role = 'host' | 'guest'，recvCode 为对端发来的码（可为空）
+     roomName/sideName 由 UI 传入 —— 发码这一侧拿不到 obj.room，必须自己记下来，
+     否则 NET.room()/NET.side() 一直是空，快照的红action会搞反阵营。 */
+  async function connect(role, recvCode, roomName, sideName){
     myRole = role;
+    room = roomName || room;
+    mySide = sideName || mySide;
     status('连接中…', 'busy');
     try {
       if(!recvCode){
@@ -140,6 +154,7 @@ const NET = (() => {
     enabled: () => connected && !!dc && dc.readyState === 'open',
     isHost: () => myRole === 'host',
     side: () => mySide,
+    remote: () => mySide === 'us' ? 'ussr' : 'us',
     room: () => room,
     close: () => { try { if(dc) dc.close(); } catch (e) {} try { if(pc) pc.close(); } catch (e) {} connected = false; status('已断开', 'err'); },
     ICE, dec
@@ -187,6 +202,7 @@ const PROTO = (() => {
 
   function apply(s){
     const g = G;
+    const localSide = g.playerSide;   // 我控制哪一边只属于本端，不能被快照覆盖
     Object.assign(g, {
       turn: s.turn, defcon: s.defcon,
       vp: s.vp, milOps: s.milOps, space: s.space,
@@ -214,6 +230,7 @@ const PROTO = (() => {
       g.hand[p] = (s.hand[p] || []).map(n => CARDS.find(c => c.n === n)).filter(Boolean);
     }
     g.deck = s.deck ? Array.from({length: s.deck}, () => null) : [];  // 访客不持有牌堆内容
+    if(localSide) g.playerSide = localSide;
     if(window.UI) UI.render();
     if(window.MAP) MAP.updateAll();
   }
@@ -234,6 +251,12 @@ const PROTO = (() => {
     return NET.send({t: 'cmd', c});
   }
 
+  /* 访客索一次全量快照：自己先 open、对方还没开始监听时，开局快照会整批丢掉 */
+  function requestSync(){
+    if(!NET.enabled()) return false;
+    return NET.send({t: 'sync'});
+  }
+
   /* 是否由房主直接处理输入（访客输入一律走 cmd） */
   function isLocalActor(){
     if(!NET.enabled()) return true;
@@ -241,11 +264,17 @@ const PROTO = (() => {
   }
 
   // ev 是 pushEv 的别名：engine.js 里到处调 PROTO.ev()
-  return {snapshot, apply, broadcast, pushEv, ev: pushEv, cmd, isLocalActor};
+  return {snapshot, apply, broadcast, pushEv, ev: pushEv, cmd, requestSync, isLocalActor};
 })();
 
 /* ===== 联机弹窗 UI ===== */
+/* 幂等：main.js 的 bindAll() 和 boot() 都会调一次，重复绑定会让每个按钮的
+   click 监听挂两遍 —— 点一次连接就会握手两次、开两个 RTCPeerConnection。 */
+let _uiBound = false;
 NET.initUI = function(){
+  if(_uiBound) return;
+  _uiBound = true;
+
   const el = id => document.getElementById(id);
   const roleBtns = ['netRoleHost','netRoleGuest'].map(el);
   let role = 'host';
@@ -300,7 +329,7 @@ NET.initUI = function(){
     const btn = el('btnNetConnect');
     btn.disabled = true; btn.textContent = '交换中…';
     let res;
-    try { res = await NET.connect(role, recv); }
+    try { res = await NET.connect(role, recv, room, mySide); }
     catch (e) { btn.disabled = false; btn.textContent = '连接'; return; }
     btn.disabled = false; btn.textContent = '连接';
     if(!res) return;
@@ -320,19 +349,18 @@ NET.initUI = function(){
 
   function isGuestNet(){ return role === 'guest'; }
 
-  /* 自动进局：谁先点「连接」谁先拿到码，对方粘回来后通道才会真正打开。
-     主动发码的那一侧收不到 res.done，只能等 dc 打开 → 这里兜住。 */
+  /* 通道一 open 就自动进局。
+     原来用「弹窗是否还开着」判断，但访客侧根本拿不到 res.done，弹窗只能在这里关掉
+     —— 等于访客永远进不了局。通道能 open 就说明握手走完了，直接开。 */
   NET.on('open', () => {
     if(_inGame) return;
     if(!NET.enabled()) return;
-    const md = el('netModal');
-    if(!md || !md.classList.contains('hidden')) return;
-    startNetGame(
-      (el('netRoom').value || '').toUpperCase().slice(0, 12) || room4(),
-      (el('netSideUssr') && el('netSideUssr').classList.contains('selected')) ? 'ussr' : 'us',
-      role === 'guest'
-    );
+    const room = (el('netRoom').value || '').toUpperCase().slice(0, 12);
+    if(!room) return;
+    startNetGame(room, curSide(), role === 'guest');
   });
+
+  function curSide(){ return el('netSideUssr') && el('netSideUssr').classList.contains('selected') ? 'ussr' : 'us'; }
 
 
   function startNetGame(room, mySide, guest){
@@ -342,7 +370,14 @@ NET.initUI = function(){
     if(_inGame) return;
     _inGame = true;
     NET.on('msg', onNetMsg);
-    NET.on('open', () => { if(!guest && NET.enabled()) PROTO.broadcast(); });
+    if(!guest){
+      // 房主：访客索快照就重发；通道一 open 也补发一次（开局广播可能早于 open）
+      NET.on('sync', () => { if(NET.enabled()) PROTO.broadcast(); });
+      NET.on('open', () => { if(NET.enabled()) PROTO.broadcast(); });
+    } else {
+      // 访客：通道打开后主动索一次，防开局快照整批丢
+      NET.on('open', () => PROTO.requestSync());
+    }
     NET.on('close', () => toast('连接已断开'));
     el('netModal').classList.add('hidden');
     G.mode = 'online';
@@ -350,6 +385,7 @@ NET.initUI = function(){
     G.netEvents = [];
 
     if(guest){
+      PROTO.requestSync();
       toast('等待房主开局…');
       UI.render();
       return;

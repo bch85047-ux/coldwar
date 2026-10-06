@@ -291,6 +291,13 @@ function spaceCardOwner(card){
   if(card.space === 'ussr' || card.side === 'ussr') return 'ussr';
   return null;
 }
+/* 这张卡能不能给指定一方推进太空、推几步；0 = 不能。
+   UI 靠它决定「太空」投放区要不要亮，别的地方别重复推这个逻辑。 */
+function spaceStepOf(card, side){
+  if(!card || !card.space) return 0;
+  if(spaceCardOwner(card) !== side) return 0;
+  return Math.max(1, card.spaceStep || 1);
+}
 function applySpaceStep(player, step){
   const before = G.space[player];
   G.space[player] = Math.min(8, before + (step || 1));
