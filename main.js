@@ -564,3 +564,64 @@ if(document.readyState === 'loading'){
 } else {
   boot();
 }
+
+/* ================= 联机指令桥 =================
+ * 访客不直接改状态：把意图打成命令发给房主，房主本地执行后广播快照。
+ * 掷骰类动作天然不可复现，所以只广播结果（快照），不广播骰子点。
+ * 做法：捕获所有函数声明的原始引用，再把全局名重绑成「访客发包 / 房主直执行」。
+ * 这样不用逐个改调用点——其他函数里的裸调用走全局引用，自动命中包装版。
+ */
+(function installNetBridge(){
+  const orig = { playCard, onActionBtn, doOps, closeOpsState, switchActive, afterCardPlayed, endTurn, aiTurn };
+  function guest(){
+    return G.mode === 'online' && typeof NET !== 'undefined' && NET && !NET.isHost();
+  }
+  function sync(){
+    if(G.mode === 'online' && typeof PROTO !== 'undefined' && PROTO.isLocalActor()) PROTO.broadcast();
+  }
+  function cmd(c){ if(typeof PROTO !== 'undefined') PROTO.cmd(c); }
+  function apply(c){
+    try {
+      if(!c || !c.fn) return;
+      if(c.fn === 'playCard'){
+        const card = G.hand[G.activePlayer].find(k => k.n === c.n);
+        if(!card){ toast('找不到该牌'); return; }
+        orig.playCard(card, c.mode, c.cid);
+      }
+      else if(c.fn === 'opsMode') orig.onActionBtn(c.zone);
+      else if(c.fn === 'opsCountry') orig.doOps(c.mode, c.cid);
+      else if(c.fn === 'closeOps') orig.closeOpsState();
+      else if(c.fn === 'switchActive') orig.switchActive();
+      else if(c.fn === 'endTurn') orig.endTurn();
+      else { console.warn('unknown net cmd', c.fn); return; }
+      sync();
+      UI.render();
+      window.onNetApply && window.onNetApply();
+    } catch (e) { console.warn('remote cmd failed', c.fn, e.message); }
+  }
+  const wrap = (name, args, body) => {
+    const fn = new Function(args, body);
+    Object.defineProperty(window, name, { value: fn, writable: true, configurable: true });
+  };
+  wrap('playCard', 'card,mode,cid', "if(window.__guestNet()){window.PROTO&&PROTO.cmd({fn:'playCard',n:card.n,mode:mode,cid:cid});return;}" +
+    "window.__origNet.playCard(card,mode,cid);window.__syncNet();UI.render();");
+  wrap('onActionBtn', 'zone', "if(window.__guestNet()){window.PROTO&&PROTO.cmd({fn:'opsMode',zone:zone});return;}" +
+    "window.__origNet.onActionBtn(zone);window.__syncNet();UI.render();");
+  wrap('doOps', 'mode,cid', "if(window.__guestNet()){window.PROTO&&PROTO.cmd({fn:'opsCountry',mode:mode,cid:cid});return;}" +
+    "window.__origNet.doOps(mode,cid);window.__syncNet();UI.render();");
+  wrap('closeOpsState', '', "if(window.__guestNet()){window.PROTO&&PROTO.cmd({fn:'closeOps'});return;}" +
+    "window.__origNet.closeOpsState();window.__syncNet();UI.render();");
+  wrap('switchActive', '', "if(window.__guestNet()){window.PROTO&&PROTO.cmd({fn:'switchActive'});return;}" +
+    "window.__origNet.switchActive();window.__syncNet();UI.render();");
+  wrap('endTurn', '', "if(window.__guestNet()){window.PROTO&&PROTO.cmd({fn:'endTurn'});return;}" +
+    "window.__origNet.endTurn();window.__syncNet();UI.render();");
+  window.__origNet = orig;
+  window.__guestNet = guest;
+  window.__syncNet = sync;
+  window.applyRemoteCmd = apply;
+  window.onNetApply = function(){
+    if(!G.mode) return;
+    if(G.phase === 'playOps' && G.pendingOpsCard) showOpsPanel(); else hideOpsPanel();
+  };
+  if(typeof NET !== 'undefined' && NET && NET.on) NET.on('cmd', apply);
+})();
