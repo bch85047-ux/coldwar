@@ -353,8 +353,8 @@ function getOpsValue(card, player){
   // Red Scare/Purge (opponent -1)
   if(player === 'us' && G.flags.redScare === 'ussr') base = Math.max(1, base - 1);
   if(player === 'ussr' && G.flags.redScare === 'us') base = Math.max(1, base - 1);
-  // China Card bonus
-  if(card.china && base > 0) base += 1;  // 简化
+  // China Card bonus：持牌方打其他牌时 +1 ops（简化：任意区域）
+  if(G.chinaCardOwner === player && !card.china && base > 0) base += 1;
   return base;
 }
 
@@ -1025,6 +1025,17 @@ function drawOne(p){
     log('废牌堆洗回牌堆', 'sys');
   }
   G.hand[p].push(G.deck.pop());
+  // 弃到 6 张：自动弃掉当前价值最低的一张（价值 = 计分4 + 事件2 + ops）
+  while(G.hand[p].length > 6){
+    let wi = 0, wv = Infinity;
+    G.hand[p].forEach((c, i) => {
+      const v = (c.scoring ? 4 : 0) + (c.text ? 2 : 0) + (c.ops || 0);
+      if(v < wv){ wv = v; wi = i; }
+    });
+    const dropped = G.hand[p].splice(wi, 1)[0];
+    discardCard(dropped);
+    log(`${p === 'us' ? '美国' : '苏联'} 回合初自动弃牌：${dropped.zh || dropped.en}`, 'sys');
+  }
   fillHandTo6(p);
 }
 

@@ -324,8 +324,12 @@ const MAP = (() => {
   let panning = false, panStart = null;
 
   function init(){
+    // 先把 DOM 句柄取出来 —— layer 在 buildTiles 里才赋值，
+    // 之前这里 layer 还是 null，导致 host 为 null 直接 return，地图一整块都是空的
+    if(!layer) layer = document.getElementById('countryLayer');
+    if(!canvasEl) canvasEl = document.getElementById('mapCanvas');
     const host = layer && layer.parentElement;
-    if(!host) return;
+    if(!host){ console.warn('[MAP] countryLayer 不存在，地图未构建'); return; }
     buildMapSVG();
     buildTiles();
     fit();
