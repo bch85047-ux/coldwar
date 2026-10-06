@@ -728,6 +728,7 @@ header {
 }
 body.dragging { cursor: grabbing; }
 body.dragging .card { pointer-events: none; }
+.card.drag-src { opacity: .15; filter: grayscale(.7); }
 .drop-zone.drag-over {
   border-style: solid;
   border-color: var(--gold-2);

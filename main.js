@@ -105,7 +105,8 @@ function finishOpsPlay(){
 function closeOpsState(){
   const g = G;
   g.pendingOps = 0;
-  g.pendingOpsCard = null;
+  // Ops 用完了，卡进废牌堆
+  if(g.pendingOpsCard){ discardCard(g.pendingOpsCard); g.pendingOpsCard = null; }
   // 结束本次出牌
   finishPlay();
 }
@@ -332,7 +333,12 @@ function bindEvents(){
       g.pendingOpsCard = null;
       afterCardPlayed();
     } else if(zone === 'cancel'){
-      g.pendingOpsCard = null;
+      // 取消：把选定的卡还给手牌，别丢了
+      if(g.pendingOpsCard){
+        g.hand[g.activePlayer].push(g.pendingOpsCard);
+        g.hand[g.activePlayer].sort((a,b) => a.n - b.n);
+        g.pendingOpsCard = null;
+      }
     }
     UI.render();
     return true;

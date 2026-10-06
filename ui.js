@@ -78,11 +78,12 @@ const UI = (() => {
       </div>`;
     }).join('');
 
-    holder.querySelectorAll('.card').forEach(node => {
+    holder.querySelectorAll('.card').forEach((node, i) => {
+      const card = hand[i];
       // 统一走 pointerdown：轻点 = 打开投放面板；位移超过阈值 = 真拖到区域
       node.addEventListener('pointerdown', ev => {
         if(ev.button !== undefined && ev.button !== 0) return;
-        beginCardDrag(node, parseInt(node.dataset.idx), ev);
+        beginCardDrag(node, card, ev);
       });
     });
 
@@ -104,22 +105,21 @@ const UI = (() => {
     }
   }
 
-  function onCardClick(node, idx){
+  function onCardClick(card){
     const g = G;
+    if(!card) return;
     if(g.phase === 'ended' || g.turnStarted && g.playerTurnCardPlayed) return;
     if(g.mode === 'ai' && g.activePlayer !== g.playerSide) return;
     const mySide = g.mode === 'hotseat' ? g.activePlayer : g.playerSide;
     if(g.activePlayer !== mySide) return;
-    const c = g.hand[mySide][idx];
-    if(!c) return;
-    openDropOverlay(c, mySide);
+    openDropOverlay(card, mySide);
   }
 
   /* ---------- 拖拽：Pointer Events，鼠标与触屏统一 ---------- */
   const DRAG_THRESHOLD = 8;
 
-  function beginCardDrag(node, idx, ev){
-    dragging = { node, idx, x0: ev.clientX, y0: ev.clientY, moved: false, zone: null };
+  function beginCardDrag(node, card, ev){
+    dragging = { node, card, x0: ev.clientX, y0: ev.clientY, moved: false, zone: null };
     document.addEventListener('pointermove', onCardDragMove);
     document.addEventListener('pointerup', onCardDragUp);
     document.addEventListener('pointercancel', onCardDragUp);
@@ -135,7 +135,7 @@ const UI = (() => {
       ev.preventDefault();
       const g = G;
       const mySide = g.mode === 'hotseat' ? g.activePlayer : g.playerSide;
-      const card = g.hand[mySide][dragging.idx];
+      const card = dragging.card;
       if(!card){ cancelDrag(); return; }
       const rect = dragging.node.getBoundingClientRect();
       ghost = dragging.node.cloneNode(true);
@@ -144,6 +144,7 @@ const UI = (() => {
       ghost.style.height = rect.height + 'px';
       document.body.appendChild(ghost);
       document.body.classList.add('dragging');
+      dragging.node.classList.add('drag-src');
       openDropOverlay(card, mySide);
     }
 
@@ -172,15 +173,26 @@ const UI = (() => {
       if(zone){
         // 落进区域 → 走与点击完全相同的结算路径
         window.resolveZone && window.resolveZone(zone);
-      } else if(Math.abs(dx) > 48){
-        // 没落到区域但横移明显 → 当作横滑翻牌，别白折腾
+      } else {
+        // 没落到任何区域：卡已从手牌移出，得还回去，否则就丢了
+        returnPendingCard();
+        closeDropOverlay();
         const holder = el('handCards');
-        if(holder) holder.scrollLeft -= dx;
+        if(holder && Math.abs(dx) > 48) holder.scrollLeft -= dx;
       }
     } else if(d){
       // 无位移 = 轻点，保留原有交互
-      onCardClick(d.node, d.idx);
+      onCardClick(d.card);
     }
+  }
+
+  function returnPendingCard(){
+    const g = G;
+    if(!g.pendingOpsCard) return;
+    const side = g.mode === 'hotseat' ? g.activePlayer : g.playerSide;
+    g.hand[side].push(g.pendingOpsCard);
+    g.hand[side].sort((a,b) => a.n - b.n);
+    g.pendingOpsCard = null;
   }
 
   function teardownDrag(){
@@ -374,6 +386,18 @@ const UI = (() => {
   }
 
   function openDropOverlay(card, player){
+    const g = G;
+    // 选定即从手牌移走并挂为待结算卡。点击与拖拽都走这里，
+    // 之后 resolveZone 里的分支才拿得到卡。
+    if(g.pendingOpsCard && g.pendingOpsCard !== card){
+      g.hand[player].push(g.pendingOpsCard);
+      g.hand[player].sort((a,b) => a.n - b.n);
+    }
+    if(!g.pendingOpsCard){
+      const idx = g.hand[player].indexOf(card);
+      if(idx >= 0) g.hand[player].splice(idx, 1);
+      g.pendingOpsCard = card;
+    }
     const overlay = el('dropOverlay');
     if(!overlay) return;
     el('dropCardName').textContent = card.zh;
