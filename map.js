@@ -324,14 +324,17 @@ const MAP = (() => {
   let panning = false, panStart = null;
 
   function init(){
-    // 先把 DOM 句柄取出来 —— layer 在 buildTiles 里才赋值，
-    // 之前这里 layer 还是 null，导致 host 为 null 直接 return，地图一整块都是空的
+    if(!window.__mapLog) window.__mapLog = [];
+    window.__mapLog.push('init.enter rs=' + document.readyState + ' svg=' + !!document.getElementById('mapSvg') + ' layer=' + !!document.getElementById('countryLayer'));
     if(!layer) layer = document.getElementById('countryLayer');
     if(!canvasEl) canvasEl = document.getElementById('mapCanvas');
     const host = layer && layer.parentElement;
-    if(!host){ console.warn('[MAP] countryLayer 不存在，地图未构建'); return; }
+    if(!host){ window.__mapLog.push('init.earlyReturn host=' + host + ' layer=' + layer); console.warn('[MAP] countryLayer 不存在'); return; }
+    window.__mapLog.push('init.build parent=' + host.id);
     buildMapSVG();
+    window.__mapLog.push('init.svgDone children=' + (document.getElementById('mapSvg')||{}).children?.length);
     buildTiles();
+    window.__mapLog.push('init.tilesDone pos=' + Object.keys(pos).length + ' layerCh=' + document.getElementById('countryLayer').children.length);
     fit();
     if(typeof ResizeObserver !== 'undefined'){
       new ResizeObserver(() => { fitKeep(); }).observe(host);

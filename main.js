@@ -549,18 +549,24 @@ function bindAll(){
  * DOMContentLoaded 可能早已触发 → 不能只靠 addEventListener，必须判断 readyState。
  */
 function boot(){
-  if(window.MAP) MAP.init();
-  if(window.FX) FX.init();
-  if(window.MUSIC) MUSIC.init();
-  UI.render();
-  bindAll();
+  if(!window.__bootLog) window.__bootLog = [];
+  const L = m => window.__bootLog.push(m);
+  L('boot.start rs=' + document.readyState);
+  if(window.MAP) { MAP.init(); L('map.init done'); } else L('MAP missing!');
+  if(window.FX) FX.init(); L('fx ok');
+  if(window.MUSIC) MUSIC.init(); L('music ok');
+  try { UI.render(); L('ui ok'); } catch(e){ L('ui THREW ' + e.message); }
+  try { bindAll(); L('bindAll ok'); } catch(e){ L('bindAll THREW ' + e.message); }
   if(window.NET) NET.boot();
   setTimeout(() => { if(window.MAP) MAP.fit(); }, 150);
   const ts = document.getElementById('turnSelect');
   if(ts) ts.classList.remove('hidden');
 }
-if(document.readyState === 'loading'){
-  window.addEventListener('DOMContentLoaded', boot);
-} else {
-  boot();
-}
+(function(){
+  if(document.readyState === 'loading'){
+    window.addEventListener('DOMContentLoaded', boot);
+    window.__bootLog = ['queued on DOMContentLoaded'];
+  } else {
+    boot();
+  }
+})();
