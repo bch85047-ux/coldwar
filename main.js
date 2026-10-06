@@ -194,7 +194,6 @@ function doOps(mode, cid){
   else return;
 
   g.pendingOps = Math.max(0, g.pendingOps);
-  NET.localAction && NET.localAction({type:'act', mode, cid});
   UI.render();
   if(g.pendingOps <= 0){ hideOpsPanel(); finishOpsPlay(); }
 }
@@ -247,6 +246,17 @@ window.closeOpsState = closeOpsState;
 function finishOpsPlay(){
   finishPlay();
 }
+
+/* 拖动卡片直接丢到国家上：先切进 ops 态，再立刻放置。
+   访客侧是两个包按顺序到，房主顺序执行，语义完全一致。 */
+function beginOps(card, player, cid){
+  if(!card || !cid) return;
+  if(getOpsValue(card, G.activePlayer) <= 0){ toast('该卡没有 Ops'); return; }
+  playCard(card, 'ops');
+  if(_opsMode !== 'place') setOpsMode('place');
+  doOps('place', cid);
+}
+window.beginOps = beginOps;
 
 /* ---------- 出牌收尾：计数 → 换边 / 进下一回合 ---------- */
 function afterCardPlayed(){
@@ -468,14 +478,14 @@ function startGame(opts){
   if(box) box.classList.add('hidden');
 
   if(opts.mode === 'online'){
-    if(!window.NET || !NET.connected()){
-      toast('联机未连接，无法开始');
+    if(!window.NET || !NET.enabled()){
+      toast('请先在顶部「联机」里完成握手');
       if(box) box.classList.remove('hidden');
       return;
     }
-    NET.start({firstPlayer:first, me:side, asHost: opts.asHost !== false});
+    startNetGame(NET.room(), NET.side(), !NET.isHost());
   } else {
-    NET && NET.leave && NET.leave();
+    NET && NET.close && NET.close();
     initGame({mode:opts.mode, side: side === 'random' ? null : side, firstPlayer:first});
     UI.render();
     playerStartTurn();
@@ -554,7 +564,7 @@ function boot(){
   if(typeof MUSIC !== 'undefined' && MUSIC) MUSIC.init();
   UI.render();
   bindAll();
-  if(typeof NET !== 'undefined' && NET && NET.boot) NET.boot();
+  if(typeof NET !== 'undefined' && NET && NET.initUI) NET.initUI();
   setTimeout(() => { if(window.MAP) MAP.fit(); }, 150);
   const ts = document.getElementById('turnSelect');
   if(ts) ts.classList.remove('hidden');
@@ -583,6 +593,11 @@ if(document.readyState === 'loading'){
   function apply(c){
     try {
       if(!c || !c.fn) return;
+      // 只有轮到访客这一边时才受理，防止越权代打 / 乱序指令
+      if(G.activePlayer !== NET.side()){
+        if(window.toast) toast('还没轮到你');
+        return;
+      }
       if(c.fn === 'playCard'){
         const card = G.hand[G.activePlayer].find(k => k.n === c.n);
         if(!card){ toast('找不到该牌'); return; }
@@ -623,5 +638,5 @@ if(document.readyState === 'loading'){
     if(!G.mode) return;
     if(G.phase === 'playOps' && G.pendingOpsCard) showOpsPanel(); else hideOpsPanel();
   };
-  if(typeof NET !== 'undefined' && NET && NET.on) NET.on('cmd', apply);
+  if(typeof NET !== 'undefined' && NET && NET.on) NET.on('cmd', m => apply(m && m.c));
 })();

@@ -358,7 +358,7 @@ const UI = (() => {
       if(track) track.innerHTML = buildVPTrack(g.vp[p], p);
       el(p+'MilOps').textContent = g.milOps[p];
       el(p+'SpacePos').textContent = g.space[p];
-      el(p+'HandCount').textContent = (g.hand[p]||[]).length;
+      el(p+'HandCount').textContent = (g.handCount && g.handCount[p] != null) ? g.handCount[p] : (g.hand[p]||[]).length;
       const panel = el(p+'Panel');
       if(panel){ panel.classList.remove('active'); if(g.activePlayer === p) panel.classList.add('active'); }
     });

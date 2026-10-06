@@ -48,6 +48,8 @@ const NET = (() => {
       let m;
       try { m = JSON.parse(e.data); } catch (err) { return; }
       emit('msg', m);
+      // 再按消息类型派一次：cmd 由房主执行，snap/ev 由访客消费
+      if(m && typeof m.t === 'string') emit(m.t, m);
     };
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
@@ -148,19 +150,34 @@ const NET = (() => {
 const PROTO = (() => {
   function snapshot(){
     const g = G;
+    // 房主自己这一边不发给对方看：只给牌数，不给牌面
+    const otherSide = (NET.side() === 'ussr') ? 'ussr' : 'us';
     return {
       turn: g.turn, defcon: g.defcon,
       vp: {us: g.vp.us, ussr: g.vp.ussr},
       milOps: {us: g.milOps.us, ussr: g.milOps.ussr},
       space: {us: g.space.us, ussr: g.space.ussr},
       influence: {us: g.influence.us, ussr: g.influence.ussr},
-      hand: {us: g.hand.us.map(c => c.n), ussr: g.hand.ussr.map(c => c.n)},
+      hand: {
+        us: otherSide === 'us' ? [] : g.hand.us.map(c => c.n),
+        ussr: otherSide === 'ussr' ? [] : g.hand.ussr.map(c => c.n)
+      },
+      handCount: {us: g.hand.us.length, ussr: g.hand.ussr.length},
       deck: g.deck.length,
       discard: g.discard.map(c => c.n),
       activePlayer: g.activePlayer,
       playsThisTurn: g.playsThisTurn || 0,
       playerTurnCardPlayed: !!g.playerTurnCardPlayed,
       phase: g.phase,
+      pendingOps: g.pendingOps || 0,
+      pendingOpsCardN: g.pendingOpsCard ? g.pendingOpsCard.n : null,
+      turnStarted: !!g.turnStarted,
+      currentPlayerSide: g.currentPlayerSide || null,
+      lastPlayedCardN: g.lastPlayedCard ? g.lastPlayedCard.n : null,
+      lastPlayedMode: g.lastPlayedMode || null,
+      turnDiceRolls: Object.assign({}, g.turnDiceRolls || {}),
+      log: (g.log || []).slice(-80).map(l => ({msg: l.msg, cls: l.cls, turn: l.turn})),
+      turnLog: (g.turnLog || []).slice(-40).map(l => ({msg: l.msg, cls: l.cls, turn: l.turn})),
       flags: g.flags,
       chinaCardOwner: g.chinaCardOwner,
       winner: g.winner,
@@ -180,8 +197,18 @@ const PROTO = (() => {
       playerTurnCardPlayed: s.playerTurnCardPlayed,
       phase: s.phase, flags: Object.assign({}, s.flags),
       chinaCardOwner: s.chinaCardOwner, winner: s.winner,
-      mode: s.mode, playerSide: s.playerSide, firstPlayer: s.firstPlayer
+      mode: s.mode, playerSide: s.playerSide, firstPlayer: s.firstPlayer,
+      pendingOps: s.pendingOps || 0,
+      turnStarted: !!s.turnStarted,
+      currentPlayerSide: s.currentPlayerSide || null,
+      lastPlayedCard: s.lastPlayedCardN ? CARDS.find(c => c.n === s.lastPlayedCardN) : null,
+      lastPlayedMode: s.lastPlayedMode || null,
+      turnDiceRolls: Object.assign({}, s.turnDiceRolls || {}),
+      log: s.log || [],
+      turnLog: s.turnLog || []
     });
+    g.pendingOpsCard = s.pendingOpsCardN ? CARDS.find(c => c.n === s.pendingOpsCardN) : null;
+    g.handCount = s.handCount || {};
     // 手牌按编号重建
     for(const p of ['us','ussr']){
       g.hand[p] = (s.hand[p] || []).map(n => CARDS.find(c => c.n === n)).filter(Boolean);
@@ -213,7 +240,8 @@ const PROTO = (() => {
     return NET.isHost();
   }
 
-  return {snapshot, apply, broadcast, pushEv, cmd, isLocalActor};
+  // ev 是 pushEv 的别名：engine.js 里到处调 PROTO.ev()
+  return {snapshot, apply, broadcast, pushEv, ev: pushEv, cmd, isLocalActor};
 })();
 
 /* ===== 联机弹窗 UI ===== */
@@ -277,42 +305,59 @@ NET.initUI = function(){
     btn.disabled = false; btn.textContent = '连接';
     if(!res) return;
     if(res.code){
-      // 拿到了要发给对方的码 —— 等对方回执
+      // 拿到了要发给对方的码 —— 等对方回执，通道打开后双方自动进局
       setGive(res.code);
       setRecv('');
       el('netTitle').textContent = '联机 · ' + room;
-      el('netLead').textContent = role === 'host'
-        ? '把「发出的码」完整发给对方（聊天/短信都行）。对方会回你一个回执，粘到「收到的码」里再点连接。'
-        : '把你的「发出的码」发给对方。对方应用后双方自动进入对局。';
+      el('netLead').textContent =
+        '把「发出的码」完整发给对方（聊天/短信都行）。对方粘到「收到的码」再点一次连接，双方会自动进局，不用手动关这个窗。';
     } else if(res.done){
       startNetGame(room, mySide, role === 'guest');
     }
   });
 
+  let _inGame = false;
+
   function isGuestNet(){ return role === 'guest'; }
 
-  async function startNetGame(room, mySide, guest){
-    NET.connect(room, '').catch(() => {});
-    // 房主：直接开局并广播；访客：等房主快照
-    if(!guest){
-      initGame({mode: 'online', firstPlayer: Math.random() < 0.5 ? 'us' : 'ussr', firstPlayerSide: mySide});
-      G.mode = 'online';
-      G.playerSide = mySide;
-      G.netEvents = [];
-      NET.on('msg', onNetMsg);
-      NET.on('open', () => PROTO.broadcast());
-      PROTO.broadcast();
-      el('netModal').classList.add('hidden');
-      UI.render();
-      if(NET.enabled()) PROTO.broadcast();
-    } else {
-      G.mode = 'online';
-      G.playerSide = mySide;
-      G.netEvents = [];
-      NET.on('msg', onNetMsg);
-      el('netModal').classList.add('hidden');
+  /* 自动进局：谁先点「连接」谁先拿到码，对方粘回来后通道才会真正打开。
+     主动发码的那一侧收不到 res.done，只能等 dc 打开 → 这里兜住。 */
+  NET.on('open', () => {
+    if(_inGame) return;
+    if(!NET.enabled()) return;
+    const md = el('netModal');
+    if(!md || !md.classList.contains('hidden')) return;
+    startNetGame(
+      (el('netRoom').value || '').toUpperCase().slice(0, 12) || room4(),
+      (el('netSideUssr') && el('netSideUssr').classList.contains('selected')) ? 'ussr' : 'us',
+      role === 'guest'
+    );
+  });
+
+
+  function startNetGame(room, mySide, guest){
+    // 关键：这里绝不能再调 NET.connect()。
+    // connect() 第一步就是 newPC()，会关掉已经握好手的 RTCPeerConnection，
+    // 表现为「刚连上就掉线」。通道已存在，直接用。
+    if(_inGame) return;
+    _inGame = true;
+    NET.on('msg', onNetMsg);
+    NET.on('open', () => { if(!guest && NET.enabled()) PROTO.broadcast(); });
+    NET.on('close', () => toast('连接已断开'));
+    el('netModal').classList.add('hidden');
+    G.mode = 'online';
+    G.playerSide = mySide;
+    G.netEvents = [];
+
+    if(guest){
       toast('等待房主开局…');
+      UI.render();
+      return;
     }
+    initGame({mode: 'online', side: mySide, firstPlayer: Math.random() < 0.5 ? 'us' : 'ussr'});
+    UI.render();
+    playerStartTurn();      // 抽牌 + 翻 phase，和单机开局走同一条路
+    PROTO.broadcast();
   }
 
   function onNetMsg(m){
@@ -320,6 +365,7 @@ NET.initUI = function(){
       PROTO.apply(m.s);
       if(m.s && m.s.mode === 'online') G.mode = 'online';
       UI.render();
+      window.onNetApply && window.onNetApply();   // ops 面板要跟着 phase 一起显隐
     } else if(m.t === 'ev'){
       (m.e || []).forEach(playNetFx);
     }
