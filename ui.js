@@ -54,8 +54,8 @@ const UI = (() => {
     renderTurnInfo();
     renderLog();
     renderDiscard();
+    bindTips();
   }
-
   /* ---------- 手牌 ---------- */
   function renderHand(){
     const g = G;
@@ -115,12 +115,30 @@ const UI = (() => {
     openDropOverlay(card, mySide);
   }
 
-  /* ---------- 拖拽：Pointer Events，鼠标与触屏统一 ---------- */
-  const DRAG_THRESHOLD = 8;
+/* ---------- 拖拽：Pointer Events，鼠标与触屏统一 ----------
+   * 交互设计：
+   *   轻点卡片 = 打开投放面板（看卡面 + 选区域）
+   *   拖动卡片 = 直接进入操作态，可丢到：
+   *     - 地图上的国家  → 立即在该国放 Ops 并进入 playOps
+   *     - 底部行动条的「事件 / 太空 / 取消」
+   *   没落到任何目标 = 卡片弹回手牌
+   */
+  const DRAG_THRESHOLD = 6;
+  const EDGE_ZONE = 34;      // 手牌区左右边缘的弹性滚动带
+  const EDGE_SPEED = 26;     // 每帧滚动像素
+
+  let edgeTimer = null;
 
   function beginCardDrag(node, card, ev){
-    dragging = { node, card, x0: ev.clientX, y0: ev.clientY, moved: false, zone: null };
-    document.addEventListener('pointermove', onCardDragMove);
+    if(ev.button !== undefined && ev.button !== 0) return;
+    ev.preventDefault();
+    dragging = {
+      node, card,
+      x0: ev.clientX, y0: ev.clientY,
+      vx: 0, vy: 0, lx: ev.clientX, ly: ev.clientY,
+      moved: false, zone: null, cid: null
+    };
+    document.addEventListener('pointermove', onCardDragMove, {passive:false});
     document.addEventListener('pointerup', onCardDragUp);
     document.addEventListener('pointercancel', onCardDragUp);
   }
@@ -134,29 +152,69 @@ const UI = (() => {
       dragging.moved = true;
       ev.preventDefault();
       const g = G;
-      const mySide = g.mode === 'hotseat' ? g.activePlayer : g.playerSide;
-      const card = dragging.card;
-      if(!card){ cancelDrag(); return; }
+      const side = curSide();
+      if(!g.pendingOpsCard){
+        const idx = g.hand[side].indexOf(dragging.card);
+        if(idx >= 0) g.hand[side].splice(idx, 1);
+      } else if(g.pendingOpsCard !== dragging.card){
+        returnPendingCard(true);
+        const idx = g.hand[side].indexOf(dragging.card);
+        if(idx >= 0) g.hand[side].splice(idx, 1);
+      }
+      g.pendingOpsCard = dragging.card;
       const rect = dragging.node.getBoundingClientRect();
       ghost = dragging.node.cloneNode(true);
       ghost.classList.add('drag-ghost');
       ghost.style.width = rect.width + 'px';
       ghost.style.height = rect.height + 'px';
+      ghost.style.margin = '0';
       document.body.appendChild(ghost);
       document.body.classList.add('dragging');
       dragging.node.classList.add('drag-src');
-      openDropOverlay(card, mySide);
+      openDropOverlay(dragging.card, side);
+      showDragStrip(dragging.card, side);
+      if(window.SFX) SFX.play('card');
+      renderHand();
+      if(window.FX) FX.shake(2);
     }
 
-    ghost.style.left = (ev.clientX - ghost.offsetWidth / 2) + 'px';
-    ghost.style.top = (ev.clientY - ghost.offsetHeight - 20) + 'px';
+    ev.preventDefault();
+    // 速度 → 幽灵卡倾斜
+    dragging.vx = dragging.vx * 0.7 + (ev.clientX - dragging.lx) * 0.3;
+    dragging.vy = dragging.vy * 0.7 + (ev.clientY - dragging.ly) * 0.3;
+    dragging.lx = ev.clientX; dragging.ly = ev.clientY;
 
-    // 高亮指针下的投放区；ghost 自身 pointer-events:none，不会挡住命中
+    // 指针接近手牌区左右边缘 → 弹性滚动，够到远处的卡
+    edgeScroll(ev.clientX);
+
+    // 幽灵卡跟随：带倾斜与轻微缩放
+    const tilt = Math.max(-16, Math.min(16, dragging.vx * 0.9));
+    ghost.style.transform = `translate3d(${ev.clientX - ghost.offsetWidth / 2}px, ${ev.clientY - ghost.offsetHeight - 22}px, 0) rotate(${tilt}deg) scale(1.06)`;
+    ghost.style.left = '0'; ghost.style.top = '0';
+
+    // 命中检测：ghost 自身 pointer-events:none，不会挡住
     const under = document.elementFromPoint(ev.clientX, ev.clientY);
-    const zone = under && under.closest('.drop-zone');
-    dragging.zone = (zone && !zone.classList.contains('disabled')) ? zone.dataset.zone : null;
-    document.querySelectorAll('.drop-zone').forEach(z =>
-      z.classList.toggle('drag-over', z === zone && !zone.classList.contains('disabled')));
+    const stripZone = under && under.closest('.strip-zone');
+    const countryEl = under && under.closest('.country');
+    dragging.zone = (stripZone && !stripZone.classList.contains('disabled')) ? stripZone.dataset.zone : null;
+    dragging.cid = countryEl ? countryEl.dataset.cid : null;
+
+    document.querySelectorAll('.strip-zone').forEach(z =>
+      z.classList.toggle('drag-over', z === stripZone && !stripZone.classList.contains('disabled')));
+    document.querySelectorAll('.country').forEach(c =>
+      c.classList.toggle('drag-target', c === countryEl));
+  }
+
+  function edgeScroll(x){
+    const holder = el('handCards');
+    if(!holder) return;
+    const r = holder.getBoundingClientRect();
+    let dir = 0;
+    if(x < r.left + EDGE_ZONE) dir = -1;
+    else if(x > r.right - EDGE_ZONE) dir = 1;
+    if(!dir) return;
+    holder.style.transition = 'none';
+    holder.scrollLeft += dir * EDGE_SPEED;
   }
 
   function onCardDragUp(ev){
@@ -165,46 +223,84 @@ const UI = (() => {
     document.removeEventListener('pointerup', onCardDragUp);
     document.removeEventListener('pointercancel', onCardDragUp);
     dragging = null;
+    document.querySelectorAll('.strip-zone').forEach(z => z.classList.remove('drag-over'));
 
     if(d && d.moved){
-      const zone = d.zone;
-      const dx = ev.clientX - d.x0;
+      const landed = d.zone || d.cid;
       teardownDrag();
-      if(zone){
-        // 落进区域 → 走与点击完全相同的结算路径
-        window.resolveZone && window.resolveZone(zone);
+      if(d.zone){
+        // 落进行动条 → 与点击走完全相同的结算
+        window.resolveZone && window.resolveZone(d.zone);
+      } else if(d.cid){
+        // 直接丢到国家上 = 放 Ops
+        const g = G;
+        window.beginOps && window.beginOps(g.pendingOpsCard, g.activePlayer, d.cid);
       } else {
-        // 没落到任何区域：卡已从手牌移出，得还回去，否则就丢了
-        returnPendingCard();
+        // 什么都没接住 → 卡片弹回手牌
+        returnPendingCard(true);
         closeDropOverlay();
-        const holder = el('handCards');
-        if(holder && Math.abs(dx) > 48) holder.scrollLeft -= dx;
+        hideDragStrip();
+        renderHand();
       }
     } else if(d){
-      // 无位移 = 轻点，保留原有交互
       onCardClick(d.card);
     }
   }
 
-  function returnPendingCard(){
+  function returnPendingCard(silent){
     const g = G;
     if(!g.pendingOpsCard) return;
-    const side = g.mode === 'hotseat' ? g.activePlayer : g.playerSide;
+    const side = curSide();
     g.hand[side].push(g.pendingOpsCard);
     g.hand[side].sort((a,b) => a.n - b.n);
     g.pendingOpsCard = null;
+    g.pendingOps = 0;
   }
 
   function teardownDrag(){
     if(ghost){ ghost.remove(); ghost = null; }
     document.body.classList.remove('dragging');
-    document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('drag-over'));
+    document.querySelectorAll('.strip-zone').forEach(z => z.classList.remove('drag-over'));
+    document.querySelectorAll('.country').forEach(c => c.classList.remove('drag-target'));
   }
 
   function cancelDrag(){
     teardownDrag();
     dragging = null;
+    returnPendingCard();
     closeDropOverlay();
+    hideDragStrip();
+    renderHand();
+  }
+
+  function curSide(){
+    const g = G;
+    return g.mode === 'hotseat' ? g.activePlayer : g.playerSide;
+  }
+
+  /* ---------- 拖拽时的底部行动条 ---------- */
+  function showDragStrip(card, side){
+    const box = el('dragStrip');
+    if(!box) return;
+    const ops = getOpsValue(card, side);
+    const sp = spaceStepOf(card, side);
+    const ev = box.querySelector('.strip-zone.event');
+    const op = box.querySelector('.strip-zone.ops');
+    const spz = box.querySelector('.strip-zone.space');
+    if(ev)  ev.classList.toggle('disabled', !!card.scoring);
+    if(op) {
+      op.classList.toggle('disabled', ops <= 0);
+      const b = el('stripOpsVal'); if(b) b.textContent = String(ops);
+    }
+    if(spz){
+      spz.classList.toggle('disabled', sp <= 0);
+      const b = el('stripSpaceVal'); if(b) b.textContent = sp > 0 ? '+' + sp : '—';
+    }
+    box.classList.remove('hidden');
+  }
+  function hideDragStrip(){
+    const box = el('dragStrip');
+    if(box) box.classList.add('hidden');
   }
 
   /* ---------- 中央卡牌显示（对手出牌显示） ---------- */
@@ -236,40 +332,22 @@ const UI = (() => {
     }, hold || 5200);
   }
 
-  /* ---------- 地图国家 ---------- */
+/* ---------- 地图国家：节点由 MAP 一次创建，这里只做状态刷新 ---------- */
   function renderMapCountries(){
-    const g = G;
-    const layer = el('countryLayer');
-    if(!layer) return;
-    let html = '';
-    for(const [cid, c] of Object.entries(COUNTRIES)){
-      if(c.superpower) continue;
-      const us = getInf('us', cid), ss = getInf('ussr', cid);
-      const cls = [];
-      cls.push(isControlled('us', cid) ? 'us-ctrl' : isControlled('ussr', cid) ? 'ussr-ctrl' : '');
-      cls.push(c.battleground ? 'bg' : '');
-      if(c.stability === 1 || c.stability === 2) cls.push('low-stab');
-      const inf = [];
-      for(let i=0;i<us;i++) inf.push('<i class="us">●</i>');
-      for(let i=0;i<ss;i++) inf.push('<i class="ussr">●</i>');
-      const nm = c.name.length > 5 ? c.name.slice(0,5) : c.name;
-      html += `<div class="country ${cls.join(' ')}" data-cid="${cid}" style="left:${(c.nx/1000*100)}%;top:${(c.ny/600*100)}%" title="${c.name} · ${REGIONS[c.region].zh} · 稳定度 ${c.stability}${c.battleground?' · 战斗国':''}">
-        <div class="cname-mini">${escapeHtml(nm)}</div>
-        <div class="cnum">${c.stability}</div>
-        <div class="cinf">${inf.join('')}</div>
-      </div>`;
-    }
-    layer.innerHTML = html;
-    layer.querySelectorAll('.country').forEach(n => {
-      n.addEventListener('click', () => onCountryClick(n.dataset.cid));
-    });
+    if(window.MAP) MAP.updateAll();
   }
 
   function onCountryClick(cid){
     const g = G;
-    if(!g.pendingOpsCard) { toast('未处于操作阶段'); return; }
-    if(!canPlaceInfluence(g.activePlayer, cid)) { toast('该国家不可放置'); return; }
-    doOps('place', cid);
+    if(g.phase === 'ended') return;
+    // 放 Ops 阶段：点国家直接放置
+    if(g.phase === 'playOps' && g.pendingOpsCard){
+      doOps('place', cid);
+      return;
+    }
+    // 拖拽中不会走到这里（pointer 事件已接管）
+    // 其余情况：镜头对准该国
+    if(window.MAP) MAP.centerOn(cid);
   }
 
   /* ---------- 玩家面板 ---------- */
@@ -446,14 +524,6 @@ const UI = (() => {
     SFX.play && SFX.play('card');
   }
 
-  function spaceStepOf(card, player){
-    // 通用规则：Ops 卡可全部用于太空
-    if(card.n === 80 || card.n === 18) return 1;
-    if(card.scoring) return 0;
-    const ops = getOpsValue(card, player);
-    return ops > 0 ? Math.min(2, ops >= 3 ? 2 : 1) : 0;
-  }
-
   function closeDropOverlay(){
     const overlay = el('dropOverlay');
     if(!overlay) return;
@@ -504,8 +574,40 @@ const UI = (() => {
     });
   }
 
+  /* ---------- 国家悬停提示卡 ---------- */
+  let tipBound = false;
+  function bindTips(){
+    if(tipBound) return;
+    tipBound = true;
+    const tip = el('countryTip');
+    if(!tip) return;
+    document.addEventListener('pointermove', (e) => {
+      if(dragging){ tip.classList.remove('show'); return; }
+      const n = e.target.closest && e.target.closest('.country');
+      if(!n){ tip.classList.remove('show'); return; }
+      const cid = n.dataset.cid;
+      const c = COUNTRIES[cid];
+      if(!c) return;
+      const us = getInf('us', cid), ss = getInf('ussr', cid);
+      const ctrl = us > ss ? '美国' : ss > us ? '苏联' : '—';
+      tip.innerHTML = `<div class="tt-name">${c.name}</div>`
+        + `<div class="tt-row"><span>${REGIONS[c.region].zh}</span><span>稳定度 ${c.stability}</span>`
+        + (c.battleground ? '<span>战地国</span>' : '') + `</div>`
+        + `<div class="tt-row"><span class="tt-us">美国 ${us}</span><span class="tt-ussr">苏联 ${ss}</span><span>控制 ${ctrl}</span></div>`;
+      const w = tip.offsetWidth || 160;
+      let x = e.clientX + 14, y = e.clientY + 16;
+      if(x + w > innerWidth - 8) x = e.clientX - w - 12;
+      if(y + 74 > innerHeight - 8) y = e.clientY - 74;
+      tip.style.left = x + 'px';
+      tip.style.top = y + 'px';
+      tip.classList.add('show');
+    });
+  }
+
   return {
     render, cardHTML, cardHTMLBack, showCentralCard, showDice, showRealign,
     openDropOverlay, closeDropOverlay,
+    cancelDrag, returnPendingCard, renderMapCountries, onCountryClick, curSide,
+    showDragStrip, hideDragStrip,
   };
 })();

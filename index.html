@@ -23,8 +23,11 @@
       <div class="stat" id="activeStat">先手 <b>苏联</b></div>
     </div>
     <div class="controls">
+      <span id="netBadge" title="联机状态">P2P</span>
       <button class="ctrl-btn" id="btnMusic">♪ 音乐</button>
+      <input id="volRange" class="vol-range" type="range" min="0" max="160" value="100" title="音量" />
       <button class="ctrl-btn" id="btnFx">FX</button>
+      <button class="ctrl-btn" id="btnNetOpen">联机</button>
       <button class="ctrl-btn" id="btnRules">规则</button>
     </div>
   </header>
@@ -48,15 +51,41 @@
     <div id="mapArea">
       <div id="mapWrap">
         <div id="mapBox">
-          <svg id="mapSvg" viewBox="0 0 1000 600" preserveAspectRatio="none"></svg>
-          <div id="countryLayer"></div>
-          <div id="superpowerMarks"></div>
+          <div id="mapCanvas">
+            <svg id="mapSvg" viewBox="0 0 1000 600" preserveAspectRatio="none"></svg>
+            <div id="countryLayer"></div>
+            <div id="superpowerMarks"></div>
+          </div>
           <canvas id="fxCanvas"></canvas>
         </div>
       </div>
+      <div class="map-tools">
+        <button id="zoomIn" class="map-tool-btn" title="放大">＋</button>
+        <button id="zoomFit" class="map-tool-btn" title="复位">⟲</button>
+        <button id="zoomOut" class="map-tool-btn" title="缩小">－</button>
+      </div>
+      <div id="zoomHint" class="zoom-hint">滚轮缩放 · 拖动地图平移 · 双指捏合</div>
       <div id="cardDisplay" class="hidden"></div>
       <button id="btnEndPlay" class="end-play-btn hidden">结束本次出牌 · 剩余 Ops 作废</button>
+      <div id="opsPanel" class="ops-panel hidden">
+        <div class="ops-head">
+          <span class="ops-title">操作模式</span>
+          <span class="ops-cnt">剩余 <b id="opsRemain">0</b> / <b id="opsTotal">0</b></span>
+        </div>
+        <div class="ops-modes" id="opsModes">
+          <button class="ops-mode place" data-mode="place">放置<span>+1 影响力</span></button>
+          <button class="ops-mode coup" data-mode="coup">政变<span>2 Ops · 掷 5+</span></button>
+          <button class="ops-mode realign" data-mode="realign">调整<span>5 Ops · 掷 3+</span></button>
+        </div>
+        <div class="ops-hint" id="opsHint">选一种操作，然后点地图上的国家</div>
+      </div>
       <div id="toast" class="toast"></div>
+      <div id="dragStrip" class="drag-strip hidden">
+        <button class="strip-zone event" data-zone="event">事件<span>EVENT</span></button>
+        <button class="strip-zone ops" data-zone="ops">操作<span><b id="stripOpsVal">0</b> OPS</span></button>
+        <button class="strip-zone space" data-zone="space">太空<span><b id="stripSpaceVal">0</b></span></button>
+        <button class="strip-zone cancel" data-zone="cancel">取消<span>ESC</span></button>
+      </div>
     </div>
 
     <aside class="right-panel">
@@ -136,25 +165,27 @@
 <div id="turnSelect" class="modal-screen hidden">
   <div class="modal">
     <h2>冷战热斗</h2>
-    <div class="subtitle">TWILIGHT STRUGGLE · 起始掷骰</div>
-    <div class="section-label">游戏模式</div>
+    <div class="subtitle">TWILIGHT STRUGGLE</div>
+
+    <div class="section-label">单人对战</div>
     <div class="mode-row">
       <button class="opt-btn selected" data-mode="hotseat">热座双人</button>
       <button class="opt-btn" data-mode="ai">人机对战</button>
     </div>
-    <div class="section-label">玩家阵营</div>
     <div class="mode-row" id="sideRow">
       <button class="opt-btn" data-side="us">美国</button>
       <button class="opt-btn" data-side="ussr">苏联</button>
       <button class="opt-btn selected" data-side="random">随机</button>
     </div>
-    <div class="section-label">掷骰决定先手</div>
-    <div class="dice-row">
-      <button class="dice-btn us" id="btnDiceUs">美国掷骰</button>
-      <button class="dice-btn ussr" id="btnDiceUssr">苏联掷骰</button>
+    <button class="btn-primary" id="btnStart">开始 · 系统掷骰定先手</button>
+
+    <div class="section-label divider">联机对战</div>
+    <div class="mode-row">
+      <button class="opt-btn" id="btnNetHost">房主建房</button>
+      <button class="opt-btn" id="btnNetJoin">加入房间</button>
     </div>
-    <div class="dice-result" id="turnDiceResult"></div>
-    <button class="btn-primary" id="btnStart">开始</button>
+    <p class="net-hint">无服务器，端到端 P2P。建房后复制邀请码发给对方，双方互相粘贴即可完成握手，支持任意网络（无需公网 IP）。</p>
+    <button class="btn-ghost" id="btnRulesOpen">查看完整规则</button>
   </div>
 </div>
 
@@ -191,35 +222,127 @@
   <div class="modal modal-lg">
     <h2>核心规则</h2>
     <div class="rules-body">
-      <h3>回合流程</h3>
+      <h3>1 · 目标</h3>
+      <p>双方各 0 起分。第 10 回合结束时 VP 多者胜；任何时候 VP 先达 <b>10</b> 立即获胜；控制欧洲立即获胜。</p>
+
+      <h3>2 · 回合流程（共 10 回合）</h3>
       <ol>
-        <li>主动方抽 1 张卡，补至手牌 6 张</li>
-        <li>选 1 张卡打出：事件 / 操作 / 太空</li>
-        <li>结算后补 6 张，交换主动权</li>
-        <li>另一方重复，交换后进入下一回合</li>
+        <li>第 1 回合掷骰定主动方，同一玩家连续持有主动权 2 回合</li>
+        <li>回合开始：先手抽 1 张、补到 6 张；再后手抽 1 张、补到 6 张</li>
+        <li>先手打出 1 张牌，后手也打出 1 张牌 → 回合结束</li>
+        <li>第 4 回合初加入中期卡（36-64），第 8 回合初加入后期卡（65-101）</li>
+        <li>第 10 回合结束后只比较 VP，<b>不再结算任何区域</b></li>
       </ol>
-      <h3>操作类型</h3>
+
+      <h3>3 · 放 Ops（影响力）</h3>
       <ul>
-        <li><b>放置</b>：在己方影响力邻接国家 +1</li>
-        <li><b>政变</b>：掷骰 (5-6) 控制战斗国</li>
-        <li><b>调整</b>：交换双方影响力</li>
-        <li><b>军事行动</b>：非中立战斗国 = DEFCON -1</li>
+        <li>成本 <b>1 Ops</b>；若该国被对手控制则 <b>2 Ops</b>；若己方已控制则 <b>0 Ops</b></li>
+        <li>必须与己方已有影响力<b>相邻</b>，或位于己方<b>超级大国链接</b>上</li>
+        <li>单国单回合最多放 2 点；同国己方不能超过对手 2 点</li>
+        <li><b>围堵</b>生效后美方不能往对手控制国加；<b>勃列日涅夫主义</b>对苏方同理</li>
+        <li><b>北约</b>保护西欧、<b>联盟</b>保护东欧：保护区内不能放 Ops 以夺取控制</li>
       </ul>
-      <h3>结算</h3>
+
+      <h3>4 · 军事行动（DEFCON −1 的来源）</h3>
       <ul>
-        <li><b>存在</b>：≥1 影响力</li>
-        <li><b>支配</b>：≥1 影响力且非对手控制</li>
-        <li><b>控制</b>：影响力严格多于对手</li>
+        <li>放在<b>稳定度 ≤2</b> 的战地国且对手有影响力存在 → 军行 +1、DEFCON −1</li>
+        <li>政变成功夺取稳定度 ≤2 的战地国 → 同上</li>
       </ul>
-      <h3>胜利</h3>
+
+      <h3>5 · 政变 Coup</h3>
       <ul>
-        <li>控制欧洲 → 立即胜利</li>
-        <li>太空竞赛棋子到终点</li>
-        <li>回合结束 VP ≥ 10</li>
-        <li>DEFCON 1 → 核战</li>
+        <li>2 Ops（可用 1 军事 + 1 普通），目标须<b>战地国</b>且<b>稳定度 ≤2</b>、须<b>相邻</b></li>
+        <li>掷骰 <b>5-6</b> 成功；目标是己方超级大国链接则骰 <b>−1</b></li>
+        <li>北约 / 联盟保护区内不能政变</li>
+      </ul>
+
+      <h3>6 · 调整 Realignment</h3>
+      <ul>
+        <li><b>5 Ops</b>，须战地国、须相邻；掷骰 <b>3-6</b> 成功</li>
+        <li>双方差 ≤1：移除己方 1 点并给对手 +1；差 >1：只移除己方 1 点</li>
+        <li>北约 / 联盟保护区内不能调整</li>
+      </ul>
+
+      <h3>7 · 区域计分</h3>
+      <table class="rules-table">
+        <tr><th>区域</th><th>存在</th><th>支配</th><th>控制</th></tr>
+        <tr><td>欧洲</td><td>3</td><td>7</td><td>立即胜利</td></tr>
+        <tr><td>亚洲</td><td>3</td><td>7</td><td>9</td></tr>
+        <tr><td>中东</td><td>3</td><td>5</td><td>7</td></tr>
+        <tr><td>东南亚</td><td>3</td><td>5</td><td>7</td></tr>
+        <tr><td>非洲</td><td>3</td><td>4</td><td>7</td></tr>
+        <tr><td>中美</td><td>3</td><td>5</td><td>7</td></tr>
+        <tr><td>南美</td><td>3</td><td>5</td><td>7</td></tr>
+      </table>
+      <ul>
+        <li><b>存在</b>：区域内至少 1 国有己方影响力</li>
+        <li><b>支配</b>：区域内没有任何国家被对手控制（空白国也算被支配）</li>
+        <li><b>控制</b>：至少控制 3 国 且 区域内对手完全无影响力</li>
+        <li>另外：<b>控制区域内的每个战地国 +1 VP</b></li>
+      </ul>
+
+      <h3>8 · 太空竞赛</h3>
+      <ul>
+        <li>只有 <b>#18</b>（苏）与 <b>#80</b>（美）能推太空，各 +1 步</li>
+        <li>到达 <b>5</b>：得 4 VP 且 DEFCON −1；双方同时到 5 则双方都得</li>
+        <li>到达 <b>8</b>：立即胜利</li>
+      </ul>
+
+      <h3>9 · DEFCON 与终局</h3>
+      <ul>
+        <li>DEFCON 5→1，只有军事行动能降</li>
+        <li>DEFCON 降到 <b>1</b>：游戏立即结束，<b>VP 多者胜</b>（相同则平局）</li>
+        <li>第 10 回合结束：只比 VP，不结算区域</li>
+      </ul>
+
+      <h3>10 · 特殊标记</h3>
+      <ul>
+        <li><b>◆</b> 战地国 · <b>虚线框</b> 稳定度 ≤2 · <b>金色角标</b> 稳定度</li>
+        <li><b>围堵</b> 1 回合美方 Ops +1 但不能放已控对手国；<b>勃列日涅夫</b> 同理对苏方</li>
+        <li><b>红色恐慌 / 大清洗</b>：对手 Ops 卡 −1</li>
+        <li><b>中国牌</b>：持有者亚洲 Ops 卡 +1，打出后交给对方</li>
+      </ul>
+
+      <h3>11 · 操作提示</h3>
+      <ul>
+        <li><b>点击</b>手牌 → 看卡面 → 选区域；<b>拖动</b>手牌 → 直接丢到地图国家上立即放置</li>
+        <li>滚轮 / 双指缩放地图，空白处拖动平移；点地图国家也可放置</li>
+        <li><b>空格</b> 结束回合，<b>Esc</b> 取消当前动作</li>
       </ul>
     </div>
     <button class="btn-primary" id="btnRulesClose">关闭</button>
+  </div>
+</div>
+
+<!-- Net (online) modal -->
+<div id="netModal" class="modal-screen hidden">
+  <div class="modal net-modal">
+    <h2 id="netTitle">联机 · P2P</h2>
+    <p class="net-lead" id="netLead">选一方，点连接生成邀请码，发给对方；对方粘回来再点连接，即可进局。</p>
+    <div class="net-grid">
+      <button class="opt-btn" id="netRoleHost">我是房主</button>
+      <button class="opt-btn" id="netRoleGuest">我是访客</button>
+    </div>
+    <div class="section-label">房间名（双方填同一个）</div>
+    <input id="netRoom" class="net-room" maxlength="12" value="CWCW47" />
+    <button class="btn-primary" id="btnNetConnect">连接</button>
+    <div class="net-code-wrap">
+      <div class="section-label">发出的码 · 发给对方</div>
+      <textarea id="netGive" class="net-code" rows="4" readonly placeholder="点「连接」后这里会出现一段码"></textarea>
+      <button class="btn-ghost" id="btnCopyGive">复制</button>
+    </div>
+    <div class="net-code-wrap">
+      <div class="section-label">收到的码 · 粘贴对方发来的</div>
+      <textarea id="netRecv" class="net-code" rows="4" placeholder="把对方的码完整粘进来，再点「连接」"></textarea>
+    </div>
+    <div id="netStatus" class="net-status">未连接</div>
+    <div class="net-role-row">
+      <span class="section-label">我的阵营</span>
+      <button class="opt-btn" id="netSideUs">美国</button>
+      <button class="opt-btn selected" id="netSideUssr">苏联</button>
+    </div>
+    <p class="net-hint">纯 P2P：所有握手数据都只有你和对方两方持有，没有任何第三方服务器看到游戏内容。首次连接若长时间未完成，通常是对端网络在阻挡 UDP，换个网络环境重试。</p>
+    <button class="btn-ghost" id="btnNetClose">关闭</button>
   </div>
 </div>
 
@@ -244,12 +367,15 @@
 
 <!-- Ghost card for dragging -->
 <div id="ghostCard" class="ghost-card hidden"></div>
+<svg id="dragLine" class="hidden"></svg>
+<div id="countryTip"></div>
 
 <script src="data.js"></script>
 <script src="map.js"></script>
 <script src="fx.js"></script>
 <script src="music.js"></script>
 <script src="engine.js"></script>
+<script src="net.js"></script>
 <script src="ui.js"></script>
 <script src="main.js"></script>
 </body>

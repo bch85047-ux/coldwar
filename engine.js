@@ -71,6 +71,7 @@ function initGame(opts){
   G.pendingSpaceStep = 0;
   G.playsThisTurn = 0;
   G.turnDiceRolls = {us:null, ussr:null};
+  G.flags.spaceScored = {us:false, ussr:false};
 
   G.mode = opts.mode || 'hotseat';
   G.playerSide = opts.side || null;
@@ -141,39 +142,62 @@ function isPresent(player, cid){ return getInf(player,cid) > 0; }
 function isDomination(player, cid){
   return getInf(player,cid) > 0 && !isControlled(opponent(player), cid);
 }
-// 区域层面：该区域所有国家都满足条件
-function regionPresence(player, regionId){
+/* ===== 区域层面判定 =====
+ * 存在 = 区域内至少一国存在己方影响力
+ * 支配 = 区域内没有任何一国被对手控制（空白国也算被支配）
+ * 控制 = 至少控制 3 国，且区域内对手完全没有影响力
+ * 超级大国不计入区域国家（原版规则）
+ */
+function regionList(regionId){
   const list = REGION_COUNTRIES[regionId]||[];
-  return list.some(cid => isPresent(player, cid));
+  return list.filter(cid => COUNTRIES[cid] && !COUNTRIES[cid].superpower);
+}
+function regionPresence(player, regionId){
+  return regionList(regionId).some(cid => isPresent(player, cid));
 }
 function regionDomination(player, regionId){
-  const list = REGION_COUNTRIES[regionId]||[];
+  const list = regionList(regionId);
   if(!list.length) return false;
-  return list.every(cid => isDomination(player, cid));
+  const opp = opponent(player);
+  return list.every(cid => !isControlled(opp, cid));
 }
 function regionControl(player, regionId){
-  const list = REGION_COUNTRIES[regionId]||[];
+  const list = regionList(regionId);
+  const opp = opponent(player);
   if(!list.length) return false;
-  // 控制 = 支配整个区域 + 每个国家影响力不低于对手
-  if(!regionDomination(player, regionId)) return false;
-  return list.every(cid => isControlled(player, cid));
+  let n = 0;
+  for(const cid of list){
+    if(isControlled(player, cid)) n++;
+    if(isPresent(opp, cid)) return false;   // 对手有存在 → 立刻不成立
+  }
+  return n >= 3;
 }
+/* ===== 放置规则 =====
+ * 成本：对手控制 2 / 已有己方影响力 1 / 己方已控制 0
+ * 限制：须相邻或超级大国链接；单国己方不能超对手 2 点
+ *       围堵(美)/勃列日涅夫(苏) 不能往对手已控国加
+ *       北约/联盟保护区内不能放置以夺取控制
+ */
 function placeCost(player, cid){
-  // 控制对手国家需要 2 ops
+  const c = COUNTRIES[cid];
+  if(!c) return 1;
+  if(isControlled(player, cid)) return 0;
   return isControlled(opponent(player), cid) ? 2 : 1;
 }
 function canPlaceInfluence(player, cid){
   const c = COUNTRIES[cid];
   if(!c || c.superpower) return false;
-  if(isControlled(player, cid)) return true;
-  if(getInf(player, cid) > 0) return true;
-  // 邻接
-  for(const n of (c.neighbors||[])){
-    if(getInf(player, n) > 0) return true;
-  }
-  // 超级大国邻接
-  if((SUPERPOWER_LINKS[player]||[]).includes(cid)) return true;
-  return false;
+  const opp = opponent(player);
+  // 围堵 / 勃列日涅夫：不能往对手已控国加
+  if((G.flags.containment && player === 'us' && isControlled('ussr', cid))) return false;
+  if((G.flags.brezhnev && player === 'ussr' && isControlled('us', cid))) return false;
+  // 不能把己方堆到超过对手 2 点（无论是否已控）
+  if((G.influence[player][cid]||0) > (G.influence[opp][cid]||0) + 2) return false;
+  // 必须相邻或超级大国链接
+  if(!hasAdjInf(player, cid)) return false;
+  // 北约/联盟保护区：不能放置以夺取控制
+  if(isProtected(cid) && isControlled(opp, cid)) return false;
+  return true;
 }
 function hasAdjInf(player, cid){
   const c = COUNTRIES[cid];
@@ -183,49 +207,67 @@ function hasAdjInf(player, cid){
   return (SUPERPOWER_LINKS[player]||[]).includes(cid);
 }
 
-/* ===== 区域结算 ===== */
-function scoreRegion(regionId, card){
-  // 区域计分：存在 3 / 支配 7 / 控制 9
-  // 欧洲：控制整个欧洲 = 立即胜利
+/* 北约保护西欧、联盟保护东欧 */
+function isProtected(cid){
+  if(G.flags.nato && (WESTERN_EUROPE.includes(cid) || EASTERN_EUROPE.includes(cid))) return true;
+  if(G.flags.alliance && (WESTERN_EUROPE.includes(cid) || EASTERN_EUROPE.includes(cid))) return true;
+  return false;
+}
+
+/* ===== 区域结算 =====
+ * 各区域阈值不同（原版规则）；控制欧洲 = 立即胜利而非给分
+ */
+const REGION_SCORES = {
+  europe:          {presence:3, domination:7, control:0},   // control = 立即胜利
+  asia:            {presence:3, domination:7, control:9},
+  middle_east:     {presence:3, domination:5, control:7},
+  se_asia:         {presence:3, domination:5, control:7},
+  africa:          {presence:3, domination:4, control:7},
+  central_america: {presence:3, domination:5, control:7},
+  south_america:   {presence:3, domination:5, control:7}
+};
+
+function scoreRegion(regionId){
   const countries = REGION_COUNTRIES[regionId] || [];
-  if(!countries.length) return {regionId, scores:{us:0,ussr:0}, winner:null, autoWin:false};
+  const TH = REGION_SCORES[regionId] || {presence:3, domination:5, control:7};
+  if(!countries.length) return {regionId, scores:{us:0,ussr:0}, winner:null, autoWin:false, detail:{}};
 
   const scores = {us:0, ussr:0};
-  const pres = {us: regionPresence('us', regionId),  ussr: regionPresence('ussr', regionId)};
-  const dom  = {us: regionDomination('us', regionId),ussr: regionDomination('ussr', regionId)};
-  const ctl  = {us: regionControl('us', regionId),   ussr: regionControl('ussr', regionId)};
-
-  if(pres.us) scores.us += 3;
-  if(pres.ussr) scores.ussr += 3;
-  if(dom.us) scores.us += 4;
-  if(dom.ussr) scores.ussr += 4;
-
-  // 欧洲：控制整个欧洲 → 立即胜利
-  if(regionId === 'europe' && ctl.us)   return {regionId, scores, winner:'us',   autoWin:true, detail:{pres,dom,ctl}};
-  if(regionId === 'europe' && ctl.ussr) return {regionId, scores, winner:'ussr', autoWin:true, detail:{pres,dom,ctl}};
-
-  // 每控制一个【战地国】+1 VP
-  let usCtrl = 0, ussrCtrl = 0;
-  for(const cid of countries){
-    const c = COUNTRIES[cid];
-    if(!c.battleground) continue;
-    if(isControlled('us', cid)) usCtrl++;
-    if(isControlled('ussr', cid)) ussrCtrl++;
+  const detail = {};
+  for(const p of ['us','ussr']){
+    const pres = regionPresence(p, regionId);
+    const dom  = regionDomination(p, regionId);
+    const ctl  = regionControl(p, regionId);
+    detail[p] = {pres, dom, ctl};
+    if(pres) scores[p] += TH.presence;
+    if(dom && TH.domination > TH.presence) scores[p] += (TH.domination - TH.presence);
+    if(ctl && TH.control > TH.domination) scores[p] += (TH.control - TH.domination);
   }
-  scores.us += usCtrl;
-  scores.ussr += ussrCtrl;
 
-  // 控制的国家【紧邻对手超级大国】→ 各 +1 VP（含战地国）
-  for(const cid of countries){
-    const c = COUNTRIES[cid];
-    if(c.superpower) continue;
-    if(isControlled('us', cid) && hasAdjInf('ussr', cid)) scores.us++;
-    if(isControlled('ussr', cid) && hasAdjInf('us', cid)) scores.ussr++;
+  // 欧洲：控制 = 立即胜利，不给分
+  if(regionId === 'europe'){
+    if(detail.us.ctl || detail.ussr.ctl){
+      const w = detail.us.ctl ? 'us' : 'ussr';
+      return {regionId, scores:{us:0, ussr:0}, winner:w, autoWin:true, detail};
+    }
+    return {regionId, scores, winner:null, autoWin:false, detail};
   }
+
+  // 控制区域内的每个战地国 +1 VP
+  const bgCtrl = {us:0, ussr:0};
+  for(const cid of regionList(regionId)){
+    const c = COUNTRIES[cid];
+    if(!c || !c.battleground) continue;
+    if(isControlled('us', cid)) bgCtrl.us++;
+    if(isControlled('ussr', cid)) bgCtrl.ussr++;
+  }
+  scores.us += bgCtrl.us;
+  scores.ussr += bgCtrl.ussr;
 
   return {regionId, scores, winner:null, autoWin:false,
-    detail:{pres, dom, ctl, usCtrl, ussrCtrl, countries: countries.length}};
+    detail: Object.assign(detail, {bgCtrl, countries: countries.length, th: TH})};
 }
+
 function applyScoreCard(card, scorer){
   if(!card.scoring) return;
   const result = scoreRegion(card.scoring);
@@ -238,17 +280,57 @@ function applyScoreCard(card, scorer){
   }
 }
 
+/* ===== 太空竞赛 =====
+ * 只有专门的太空卡能推进（本卡表：#18 苏 / #80 美），各 +1 步
+ * 到 5：+4 VP 且 DEFCON −1（双方同时到 5 则双方都得）
+ * 到 8：立即胜利
+ */
+function spaceCardOwner(card){
+  if(!card || !card.space) return null;
+  if(card.space === 'us' || card.side === 'us') return 'us';
+  if(card.space === 'ussr' || card.side === 'ussr') return 'ussr';
+  return null;
+}
+function applySpaceStep(player, step){
+  const before = G.space[player];
+  G.space[player] = Math.min(8, before + (step || 1));
+  log(`太空竞赛 ${player === 'us' ? '美国' : '苏联'} +${step || 1} → 位置 ${G.space[player]}`, player);
+  if(before < 5 && G.space[player] >= 5){
+    addVP(player, 4, '太空 5');
+    const opp = opponent(player);
+    if(G.space[opp] >= 5 && !G.flags.spaceScored[opp]){
+      addVP(opp, 4, '太空 5');
+      G.flags.spaceScored[opp] = true;
+    }
+    G.flags.spaceScored[player] = true;
+    changeDefcon(-1);
+    if(window.FX) FX.defconAlarm();
+  }
+  if(G.space[player] >= 8){
+    if(window.FX){ FX.rocket(player); FX.shake(6); }
+    declareWinner(player, '太空竞赛抵达终点');
+  }
+  checkWin();
+}
+
 /* ===== DEFCON ===== */
 function changeDefcon(delta){
+  const before = G.defcon;
   G.defcon = Math.max(1, Math.min(5, G.defcon + delta));
   if(G.defcon === 1){
     log('DEFCON 1 - 核战!', 'warn');
     nukeGame();
-  } else if(delta < 0){
+    checkWin();
+    return;
+  }
+  if(delta < 0){
     log(`DEFCON 降至 ${G.defcon}`, 'warn');
+    if(window.FX) FX.defconPulse(G.defcon);
   } else if(delta > 0){
     log(`DEFCON 升至 ${G.defcon}`, 'sys');
+    if(window.FX) FX.flash('#6fd39a', 3);
   }
+  if(G.mode === 'online' && window.PROTO) PROTO.ev({kind:'defcon', level: G.defcon});
   checkWin();
 }
 
@@ -425,7 +507,7 @@ function resolveCardEffect(card, player){
     case 17: {
       remInf('us','france',2);
       addInf('ussr','france',1);
-      G.flags.france_nato = false;
+      G.flags.nato = false;   // 北约随卡失效
       break;
     }
     case 18: {
@@ -858,12 +940,26 @@ function checkWin(){
 }
 
 function nukeGame(){
-  G.winner = 'draw';
+  // DEFCON 1：立即结束，VP 多者胜，相同则平局
+  if(G.winner) return;
   G.phase = 'ended';
+  if(G.vp.us > G.vp.ussr)      G.winner = 'us';
+  else if(G.vp.ussr > G.vp.us) G.winner = 'ussr';
+  else                         G.winner = 'draw';
+  log('DEFCON 1 · 核战结束：' + (G.winner === 'draw' ? '平局' : (G.winner === 'us' ? '美国获胜' : '苏联获胜')), 'warn');
   setTimeout(()=>{
-    if(window.FX) FX.nuke();
-    document.getElementById('nukeModal').classList.remove('hidden');
-  }, 800);
+    if(window.FX){ FX.nuke(); FX.shake(16); FX.flash('#ffb347', 1); }
+    if(window.SFX) SFX.play('boom');
+    const modal = document.getElementById('nukeModal');
+    if(modal){
+      const h = document.createElement('p');
+      h.className = 'nuke-score';
+      h.textContent = `最终 VP · 美国 ${G.vp.us}  :  苏联 ${G.vp.ussr}`
+        + (G.winner === 'draw' ? '  →  平局' : '  →  ' + (G.winner === 'us' ? '美国获胜' : '苏联获胜'));
+      modal.querySelector('.nuke-modal').appendChild(h);
+      modal.classList.remove('hidden');
+    }
+  }, 900);
 }
 
 function declareWinner(winner, reason){
@@ -886,110 +982,67 @@ function declareWinner(winner, reason){
   }, 600);
 }
 
-/* ===== 回合流程 ===== */
-function startTurn(){
-  G.phase = 'turnStart';
-  G.turnStarted = false;
-  G.playerTurnCardPlayed = false;
-  G.turnLog = [];
-  G.lastPlayedCard = null;
-  G.lastPlayedMode = null;
-  // 清除回合性效果
-  G.flags.containment = false;
-  G.flags.brezhnev = false;
-  G.flags.quagmire = false;
-  G.flags.flowerPower = G.flags.flowerPower; // 持久
-  
-  // 补手牌到 6
-  fillHandTo6('us');
-  fillHandTo6('ussr');
-  
-  if(G.activePlayer === 'us' && !G.turnStarted){
-    // 主动方先抽 1 张
-    if(G.deck.length > 0){
-      const c = G.deck.pop();
-      G.hand.us.push(c);
-    }
-  } else if(G.activePlayer === 'ussr' && !G.turnStarted){
-    if(G.deck.length > 0){
-      const c = G.deck.pop();
-      G.hand.ussr.push(c);
-    }
-  }
-  G.turnStarted = true;
-  
-  showTurnOverlay();
-  if(window.UI) UI.render();
-}
-
-function nextTurn(){
-  // 交换主动权
-  G.activePlayer = opponent(G.activePlayer);
-  G.currentPlayerSide = G.activePlayer;
-  
-  // 另一家也抽 1 张
-  if(G.deck.length > 0){
-    G.hand[G.activePlayer].push(G.deck.pop());
-  }
-  fillHandTo6(G.activePlayer);
-  
-  showTurnOverlay();
-  if(window.UI) UI.render();
-  
-  if(G.mode === 'ai' && G.activePlayer !== G.playerSide){
-    setTimeout(aiTurn, 1500);
-  }
-}
-
+/* ===== 回合推进（单一实现，全游戏只有一份）===== */
 function endTurn(){
-  // 回合结束，进入下一回合
-  G.turn++;
-  
-  // 切换战争时期
-  const oldPeriod = getPeriod(G.turn - 1);
-  const newPeriod = getPeriod(G.turn);
-  if(oldPeriod !== newPeriod){
-    log(`进入${getPeriodName(newPeriod)}`, 'sys');
-    if(G.turn === 4){
-      // 中期开始：从 discard 里挑 mid 卡
-      const newCards = CARDS.filter(c=>c.period==='mid').map(c=>({...c}));
-      G.deck = shuffle([...G.deck, ...shuffle(newCards)]);
-    } else if(G.turn === 8){
-      const newCards = CARDS.filter(c=>c.period==='late').map(c=>({...c}));
-      G.deck = shuffle([...G.deck, ...shuffle(newCards)]);
-    }
-  }
-  
-  if(G.turn > 10){
-    // 游戏结束
-    if(G.vp.us > G.vp.ussr) declareWinner('us', `终局 VP: 美国 ${G.vp.us} - 苏联 ${G.vp.ussr}`);
-    else if(G.vp.ussr > G.vp.us) declareWinner('ussr', `终局 VP: 苏联 ${G.vp.ussr} - 美国 ${G.vp.us}`);
-    else declareWinner('draw', '平局');
+  if(G.winner) return;
+  G.playsThisTurn = 0;
+  G.playerTurnCardPlayed = false;
+  G.pendingOpsCard = null;
+  G.pendingOps = 0;
+
+  // 第 10 回合打完 = 终局：只比 VP，不再结算任何区域
+  if(G.turn >= 10){
+    finalize();
     return;
   }
-  
-  // 主动方不变（每回合都换两次 = 一次）
-  // 实际上 turn 1 开始的第一家 = 主动方
-  // turn 2 开始也是同一家
-  // 所以 G.activePlayer 不动
+
+  G.turn++;
+  if(G.turn === 4) injectPeriodCards('mid');
+  if(G.turn === 8) injectPeriodCards('late');
+
+  // 回合开始：先手抽 1 补 6，后手抽 1 补 6
+  drawOne(G.activePlayer);
+  drawOne(opponent(G.activePlayer));
   G.turnStarted = false;
   G.phase = 'turnStart';
-  
-  if(G.activePlayer === 'us'){
-    if(G.deck.length > 0) G.hand.us.push(G.deck.pop());
-  } else {
-    if(G.deck.length > 0) G.hand.ussr.push(G.deck.pop());
-  }
-  G.turnStarted = true;
-  fillHandTo6('us');
-  fillHandTo6('ussr');
-  
+
+  if(window.FX){ FX.turnSweep(); FX.flash('#c9a96a', 5); }
+  if(window.SFX) SFX.play('turn');
+  log(`回合 ${G.turn} · 先手${G.activePlayer === 'us' ? '美国' : '苏联'}`, 'sys');
   showTurnOverlay();
   if(window.UI) UI.render();
-  
+
   if(G.mode === 'ai' && G.activePlayer !== G.playerSide){
     setTimeout(aiTurn, 1500);
   }
 }
+
+function drawOne(p){
+  if(!G.deck.length){
+    if(!G.discard.length) return;
+    G.deck = shuffle([...G.discard]);
+    G.discard = [];
+    log('废牌堆洗回牌堆', 'sys');
+  }
+  G.hand[p].push(G.deck.pop());
+  fillHandTo6(p);
+}
+
+function injectPeriodCards(period){
+  const cards = CARDS.filter(c => c.period === period).map(c => ({...c}));
+  G.deck = shuffle([...G.deck, ...shuffle(cards)]);
+  log(`加入${getPeriodName(period)}卡牌 ${cards.length} 张`, 'sys');
+}
+
+function finalize(){
+  if(G.winner) return;
+  G.phase = 'ended';
+  const u = G.vp.us, s = G.vp.ussr;
+  const winner = u > s ? 'us' : s > u ? 'ussr' : 'draw';
+  log(`终局 · 美国 ${u} VP : 苏联 ${s} VP`, 'sys');
+  declareWinner(winner, `第 10 回合结束 · 美国 ${u} : 苏联 ${s}`);
+  if(window.UI) UI.render();
+}
+
 
 /* showTurnOverlay 只在 main.js 实现一次，避免脚本顺序导致重复定义互相覆盖 */

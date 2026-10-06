@@ -17,6 +17,7 @@ const MUSIC = (() => {
   // 用的是真实年代录音（78rpm / 1909 年蜡筒），本身就有那个年代的音色，
   // 再叠做旧只会把音质糊掉。默认关，想听黑胶味再开。
   let aged = false;
+  let masterVol = 1.0;          // 用户音量 0..1.5，默认满
   let loaded = {};              // {us: Audio|null, ussr: Audio|null}
   let synthTimer = null;
 
@@ -29,7 +30,7 @@ const MUSIC = (() => {
   /* ---------- 做旧链 ---------- */
   function buildAgingChain(){
     const c = ac(); if(!c) return null;
-    master = c.createGain(); master.gain.value = 0.78;
+    master = c.createGain(); master.gain.value = masterVol;
 
     // 低通染色（模拟旧喇叭/旧电台）
     const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=12500; lp.Q.value=0.6;
@@ -59,8 +60,16 @@ const MUSIC = (() => {
     // 爆点（随机咔哒）
     if(aged) scheduleCrackle(c, master);
 
-    master.connect(c.destination);
-    return {c, master, chain: {lp, hp, p1, p2, splitter, merger}};
+    // 压缩器：拉平动态，同时把整体响度顶起来（真 78rpm 录音底噪低，压一下才够听）
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 24;
+    comp.ratio.value = 5;
+    comp.attack.value = 0.004;
+    comp.release.value = 0.28;
+    master.connect(comp).connect(c.destination);
+    return {c, master, comp, chain: {lp, hp, p1, p2, splitter, merger}};
+
   }
 
   function makeNoiseBuffer(c, seconds, type){
@@ -90,7 +99,7 @@ const MUSIC = (() => {
       o.type = Math.random() < 0.35 ? 'square' : 'sine';
       o.frequency.value = 900 + Math.random()*3800;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.05 + Math.random()*0.09, t + 0.001);
+      g.gain.exponentialRampToValueAtTime((0.05 + Math.random()*0.09) * masterVol, t + 0.001);
       g.gain.exponentialRampToValueAtTime(0.0001, t + len);
       o.connect(g).connect(dest);
       o.start(t); o.stop(t + len + 0.01);
@@ -144,7 +153,7 @@ const MUSIC = (() => {
       // 真原曲：通过 audio element + MediaElementSource 进做旧链
       stop();
       const src = c.createMediaElementSource(audio);
-      const gain = c.createGain(); gain.gain.value = 0.9;
+      const gain = c.createGain(); gain.gain.value = 1.45 * masterVol;
       const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value= aged?11000:18000; lp.Q.value=0.6;
       const hp = c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value= aged?60:20;
       // wow&flutter: LFO → gain 微摆（近似 playbackRate 抖动）
@@ -273,6 +282,13 @@ const MUSIC = (() => {
     init(){ ac(); },
     preload, play, stop, toggle,
     setAged, isAged(){return aged;},
+    setVolume(v){
+      masterVol = Math.max(0, Math.min(1.6, Number(v) || 0));
+      if(master) master.gain.value = masterVol;
+      if(cur && cur.gain) cur.gain.gain.value = 1.45 * masterVol;
+    },
+    volume(){ return masterVol; },
+    master(){ return master; },
     isPlaying, currentTrack, trackStatus, hasOriginal,
     TRACKS,
   };

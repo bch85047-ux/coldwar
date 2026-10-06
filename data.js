@@ -20,7 +20,7 @@ const COUNTRIES = {
 
   // Europe - Western
   canada:{name:'加拿大', stability:4, bg:'us', region:'europe', battleground:false, nx:220, ny:175, neighbors:['us','uk']},
-  uk:{name:'英国', stability:5, bg:'us', region:'europe', battleground:false, nx:445, ny:165, neighbors:['canada','france','norway']},
+  uk:{name:'英国', stability:4, bg:'us', region:'europe', battleground:false, nx:445, ny:165, neighbors:['canada','france','norway']},
   france:{name:'法国', stability:3, bg:'us', region:'europe', battleground:true, nx:465, ny:195, neighbors:['uk','west_germany','italy','algeria']},
   west_germany:{name:'西德', stability:4, bg:'us', region:'europe', battleground:true, nx:495, ny:178, neighbors:['france','east_germany','poland','czechoslovakia','italy']},
   italy:{name:'意大利', stability:2, bg:'us', region:'europe', battleground:true, nx:498, ny:215, neighbors:['france','west_germany','yugoslavia','greece']},
@@ -198,7 +198,7 @@ const CARDS = [
    text:'东欧美方全清 4 国，或东欧 +5 苏联（每国≤2）。允许北约打出。'},
   {n:17, en:'De Gaulle Leads France', zh:'戴高乐领导法国', side:'ussr', ops:3, period:'early',
    text:'法国 -2 美方 +1 苏联。取消北约对法国效果。'},
-  {n:18, en:'Captured Nazi Scientist', zh:'捕获纳粹科学家', side:'neutral', ops:1, period:'early',
+  {n:18, en:'Sputnik', zh:'斯普特尼克', side:'neutral', ops:1, period:'early', space:'ussr',
    text:'太空竞赛 +1 格。'},
   {n:19, en:'Truman Doctrine', zh:'杜鲁门主义', side:'us', ops:1, period:'early',
    text:'移除一个非苏控欧洲国的所有苏联影响力。'},
@@ -326,7 +326,7 @@ const CARDS = [
    text:'美方下列每控制 1 国 +1 VP：墨西哥、巴西、阿根廷、智利、委内瑞拉。'},
   {n:79, en:'Africa Scoring', zh:'非洲计分', side:'neutral', ops:0, period:'mid', scoring:'africa',
    text:'存在 3 / 支配 7 / 控制 9。控制战地国 +1 VP。不能保留。'},
-  {n:80, en:'"One Small Step..."', zh:'“一小步”', side:'neutral', ops:0, period:'mid', space:true,
+  {n:80, en:'One Small Step', zh:'“一小步”', side:'neutral', ops:0, period:'mid', space:'us',
    text:'太空竞赛 +1 格。'},
   {n:81, en:'South America Scoring', zh:'南美计分', side:'neutral', ops:0, period:'mid', scoring:'south_america',
    text:'存在 3 / 支配 7 / 控制 9。不能保留。'},

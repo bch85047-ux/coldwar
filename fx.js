@@ -194,7 +194,101 @@ const FX = (() => {
     spawn({x,y,type:'ring',size:4,maxAge:28,color:'#c9a96a'});
   }
 
-  return { init, setEnabled, explosion, coup, placeInf, warTrail, rocket, nuke, defconAlarm, scoringGlow, flash, shake };
+
+  /* ---------- 区域级特效 ---------- */
+
+  // 结算区域时：该区所有国家轮流金环扩散 + 得分为方的色带扫过
+  function regionSweep(rid, winner, vp){
+    const list = (window.regionList ? regionList(rid) : (REGION_COUNTRIES[rid] || []));
+    let k = 0;
+    list.forEach(cid => {
+      setTimeout(() => {
+        const {x, y} = xyOf(cid);
+        const col = winner === 'us' ? '#7fb0e0' : winner === 'ussr' ? '#e8455c' : '#c9a96a';
+        spawn({x, y, type:'ring', size: 5, maxAge: 34, color: col});
+        spawn({x, y, type:'ring', size: 2, maxAge: 22, color: '#ffe0a0'});
+        for(let i = 0; i < 7; i++){
+          const a = Math.random()*Math.PI*2, sp = 0.4 + Math.random()*1.1;
+          spawn({x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 0.4, g: 0.02, drag: 0.97, size: 1.5, maxAge: 32, color: col});
+        }
+      }, k++ * 46);
+    });
+    flash(winner === 'us' ? '#4a7fb5' : winner === 'ussr' ? '#c8102e' : '#c9a96a', 7);
+    shake(3);
+    if(vp) vpBurst(winner, vp);
+    if(window.SFX) SFX.play('score');
+  }
+
+  // VP 增加：屏幕中央金色爆点 + 数字上滚
+  function vpBurst(player, n){
+    spawn({x: W/2, y: 12, type:'ring', size: 3, maxAge: 26, color: player === 'us' ? '#7fb0e0' : '#e8455c'});
+    for(let i = 0; i < 18 + (n || 0)*4; i++){
+      const a = -Math.PI/2 + (Math.random()-0.5)*2.2;
+      spawn({x: W/2, y: 14, vx: Math.cos(a)*1.6, vy: Math.sin(a)*2.2 + 0.6, g: 0.06, drag: 0.96, size: 1.4 + Math.random()*1.6, maxAge: 34 + Math.random()*22, color: ['#c9a96a','#e0c890','#fff2c0'][Math.floor(Math.random()*3)]});
+    }
+  }
+
+  // DEFCON 降到新档位：全屏红闪 + 屏幕边缘脉冲
+  function defconPulse(level){
+    const a = Math.max(2, 9 - level);
+    flash('#c8102e', a);
+    shake(a);
+    for(let i = 0; i < 3; i++){
+      setTimeout(() => {
+        spawn({x: W/2, y: H/2, type:'ring', size: 10, maxAge: 40, color: '#c8102e'});
+      }, i * 190);
+    }
+    if(window.SFX) SFX.play('alarm');
+  }
+
+  // 回合切换：一道横向光带从左扫到右
+  function turnSweep(){
+    const y = H * (0.35 + Math.random()*0.3);
+    for(let i = 0; i < 42; i++){
+      setTimeout(() => {
+        spawn({x: -10 + i*3, y: y + (Math.random()-0.5)*26, type:'tracer', vx: 2.4, vy: 0, size: 1.6, maxAge: 12, color: '#c9a96a'});
+      }, i * 14);
+    }
+    flash('#c9a96a', 3);
+  }
+
+  // 手牌被抽出：从手牌位置飞向中央
+  function cardFly(x, y, color){
+    for(let i = 0; i < 14; i++){
+      spawn({x, y, vx: (Math.random()-0.5)*1.2, vy: -1 - Math.random()*2.4, g: -0.01, drag: 0.98, size: 1.4 + Math.random()*1.6, maxAge: 26, color: color || '#c9a96a'});
+    }
+  }
+
+  // 胜利彩带
+  function confetti(color){
+    for(let i = 0; i < 130; i++){
+      setTimeout(() => {
+        spawn({
+          x: Math.random()*W, y: -8,
+          vx: (Math.random()-0.5)*0.8, vy: 1.4 + Math.random()*2.2,
+          g: 0.035, drag: 0.992, size: 2 + Math.random()*2.6,
+          maxAge: 90 + Math.random()*70,
+          color: color || ['#c9a96a','#7fb0e0','#e8455c','#fff2c0'][Math.floor(Math.random()*4)]
+        });
+      }, Math.random()*1400);
+    }
+  }
+
+  // 数字滚动（用于 VP / DEFCON 等文字元素）
+  function countUp(elx, from, to, ms, prefix, suffix){
+    if(!elx) return;
+    const t0 = performance.now();
+    const dur = ms || 700;
+    (function step(now){
+      const k = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      elx.textContent = (prefix || '') + Math.round(from + (to - from) * e) + (suffix || '');
+      if(k < 1) requestAnimationFrame(step);
+    })(performance.now());
+  }
+
+  return { init, setEnabled, explosion, coup, placeInf, warTrail, rocket, nuke, defconAlarm, scoringGlow, flash, shake,
+    regionSweep, vpBurst, defconPulse, turnSweep, cardFly, confetti, countUp, enabled(){return enabled;} };
 })();
 
 /* ===== 音效合成器 (SFX) ===== */
@@ -290,6 +384,24 @@ const SFX = (() => {
         g.gain.setValueAtTime(0.12,tt); g.gain.exponentialRampToValueAtTime(0.001,tt+0.5);
         o.connect(g).connect(c.destination); o.start(tt); o.stop(tt+0.55);
       });
+    } else if(name === 'score'){
+      [659, 880, 1318].forEach((f, i) => {
+        const tt = t + i * 0.09;
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'triangle'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.11, tt); g.gain.exponentialRampToValueAtTime(0.001, tt + 0.34);
+        o.connect(g).connect(c.destination); o.start(tt); o.stop(tt + 0.36);
+      });
+    } else if(name === 'click'){
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'square'; o.frequency.value = 1400;
+      g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.05);
+    } else if(name === 'turn'){
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(320, t + 0.22);
+      g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.32);
     }
   }
   return { play, setEnabled };
