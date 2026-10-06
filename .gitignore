@@ -2,3 +2,5 @@
 *.log
 
 poll_token.sh
+
+wait_pages.sh
