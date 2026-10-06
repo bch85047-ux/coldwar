@@ -79,7 +79,11 @@ const UI = (() => {
     }).join('');
 
     holder.querySelectorAll('.card').forEach(node => {
-      node.addEventListener('click', () => onCardClick(node, parseInt(node.dataset.idx)));
+      // 统一走 pointerdown：轻点 = 打开投放面板；位移超过阈值 = 真拖到区域
+      node.addEventListener('pointerdown', ev => {
+        if(ev.button !== undefined && ev.button !== 0) return;
+        beginCardDrag(node, parseInt(node.dataset.idx), ev);
+      });
     });
 
     // 对手手牌数（AI 模式）
@@ -109,6 +113,86 @@ const UI = (() => {
     const c = g.hand[mySide][idx];
     if(!c) return;
     openDropOverlay(c, mySide);
+  }
+
+  /* ---------- 拖拽：Pointer Events，鼠标与触屏统一 ---------- */
+  const DRAG_THRESHOLD = 8;
+
+  function beginCardDrag(node, idx, ev){
+    dragging = { node, idx, x0: ev.clientX, y0: ev.clientY, moved: false, zone: null };
+    document.addEventListener('pointermove', onCardDragMove);
+    document.addEventListener('pointerup', onCardDragUp);
+    document.addEventListener('pointercancel', onCardDragUp);
+  }
+
+  function onCardDragMove(ev){
+    if(!dragging) return;
+    const dx = ev.clientX - dragging.x0, dy = ev.clientY - dragging.y0;
+    if(!dragging.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+    if(!dragging.moved){
+      dragging.moved = true;
+      ev.preventDefault();
+      const g = G;
+      const mySide = g.mode === 'hotseat' ? g.activePlayer : g.playerSide;
+      const card = g.hand[mySide][dragging.idx];
+      if(!card){ cancelDrag(); return; }
+      const rect = dragging.node.getBoundingClientRect();
+      ghost = dragging.node.cloneNode(true);
+      ghost.classList.add('drag-ghost');
+      ghost.style.width = rect.width + 'px';
+      ghost.style.height = rect.height + 'px';
+      document.body.appendChild(ghost);
+      document.body.classList.add('dragging');
+      openDropOverlay(card, mySide);
+    }
+
+    ghost.style.left = (ev.clientX - ghost.offsetWidth / 2) + 'px';
+    ghost.style.top = (ev.clientY - ghost.offsetHeight - 20) + 'px';
+
+    // 高亮指针下的投放区；ghost 自身 pointer-events:none，不会挡住命中
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    const zone = under && under.closest('.drop-zone');
+    dragging.zone = (zone && !zone.classList.contains('disabled')) ? zone.dataset.zone : null;
+    document.querySelectorAll('.drop-zone').forEach(z =>
+      z.classList.toggle('drag-over', z === zone && !zone.classList.contains('disabled')));
+  }
+
+  function onCardDragUp(ev){
+    const d = dragging;
+    document.removeEventListener('pointermove', onCardDragMove);
+    document.removeEventListener('pointerup', onCardDragUp);
+    document.removeEventListener('pointercancel', onCardDragUp);
+    dragging = null;
+
+    if(d && d.moved){
+      const zone = d.zone;
+      const dx = ev.clientX - d.x0;
+      teardownDrag();
+      if(zone){
+        // 落进区域 → 走与点击完全相同的结算路径
+        window.resolveZone && window.resolveZone(zone);
+      } else if(Math.abs(dx) > 48){
+        // 没落到区域但横移明显 → 当作横滑翻牌，别白折腾
+        const holder = el('handCards');
+        if(holder) holder.scrollLeft -= dx;
+      }
+    } else if(d){
+      // 无位移 = 轻点，保留原有交互
+      onCardClick(d.node, d.idx);
+    }
+  }
+
+  function teardownDrag(){
+    if(ghost){ ghost.remove(); ghost = null; }
+    document.body.classList.remove('dragging');
+    document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('drag-over'));
+  }
+
+  function cancelDrag(){
+    teardownDrag();
+    dragging = null;
+    closeDropOverlay();
   }
 
   /* ---------- 中央卡牌显示（对手出牌显示） ---------- */
@@ -274,15 +358,34 @@ const UI = (() => {
   }
 
   /* ---------- Drop Overlay ---------- */
+  function renderDropCard(card){
+    const box = el('dropCard');
+    if(!box) return;
+    const sideCls = card.side === 'neutral' ? 'neutral' : card.side;
+    const opsTxt = card.scoring ? '★' : String(card.ops);
+    const periodZh = card.period === 'early' ? '早期战争' : card.period === 'mid' ? '危机战争' : '冷战晚期';
+    box.className = 'drop-card ' + sideCls + (card.scoring ? ' scoring' : '');
+    box.innerHTML = `
+      <div class="cname">${escapeHtml(card.zh)}</div>
+      <div class="cops"><span class="cn">${card.n}</span>${opsTxt}</div>
+      <div class="cdesc">${escapeHtml(card.text) || '（无事件效果 · 仅可作 Ops / 太空）'}</div>
+      <div class="cfoot">${periodZh} · ${escapeHtml(card.en).toUpperCase()}</div>
+    `;
+  }
+
   function openDropOverlay(card, player){
     const overlay = el('dropOverlay');
     if(!overlay) return;
     el('dropCardName').textContent = card.zh;
+    renderDropCard(card);
     const zones = overlay.querySelectorAll('.drop-zone');
-    zones.forEach(z => z.classList.remove('disabled'));
+    zones.forEach(z => z.classList.remove('disabled','drag-over'));
 
+    // 完整文本，不做任何长度截断
     const desc = el('dropEventDesc');
-    if(desc) desc.textContent = card.scoring ? `结算：${REGIONS[card.scoring].zh}` : card.text.length > 60 ? card.text.slice(0,60)+'…' : card.text;
+    if(desc) desc.textContent = card.scoring
+      ? `结算 · ${REGIONS[card.scoring].zh}`
+      : (card.text ? '按卡面事件效果结算' : '仅可作 Ops / 太空');
 
     // 事件区
     const eventZone = overlay.querySelector('.drop-zone.event');

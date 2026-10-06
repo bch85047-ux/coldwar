@@ -304,40 +304,43 @@ function bindEvents(){
     toast(`特效 ${cur?'开':'关'}`);
   });
 
-  // Drop zones
+  // Drop zones —— 点击与拖拽共用同一条结算路径
+  function resolveZone(zone){
+    const g = G;
+    if(!g.pendingOpsCard) return false;
+    if(zone === 'ops' && getOpsValue(g.pendingOpsCard, g.activePlayer) <= 0){ toast('该卡无 Ops'); return false; }
+    if(zone === 'space' && spaceStepOf(g.pendingOpsCard, g.activePlayer) <= 0){ toast('该卡无太空步数'); return false; }
+    closeDropOverlay();
+    if(zone === 'event'){
+      playCardEvent(g.pendingOpsCard, g.activePlayer);
+      g.pendingOpsCard = null;
+      afterCardPlayed();
+    } else if(zone === 'ops'){
+      g.pendingOps = getOpsValue(g.pendingOpsCard, g.activePlayer);
+      toast(`使用 ${g.pendingOps} Ops · 点击地图国家放置，或点右侧操作按钮政变/调整`);
+      el('actionButtons').classList.add('active');
+      document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('disabled'));
+      document.querySelector('.action-btn.ops').classList.add('active');
+      g.phase = 'playOps';
+      g.playerTurnCardPlayed = true;
+    } else if(zone === 'space'){
+      const step = spaceStepOf(g.pendingOpsCard, g.activePlayer);
+      g.space[g.activePlayer] = Math.min(8, g.space[g.activePlayer] + step);
+      log(`太空竞赛 +${step}`, g.activePlayer);
+      if(window.FX) FX.rocket(g.activePlayer);
+      if(g.space[g.activePlayer] >= 8) declareWinner(g.activePlayer, '太空竞赛胜利');
+      g.pendingOpsCard = null;
+      afterCardPlayed();
+    } else if(zone === 'cancel'){
+      g.pendingOpsCard = null;
+    }
+    UI.render();
+    return true;
+  }
+  window.resolveZone = resolveZone;
+
   document.querySelectorAll('.drop-zone').forEach(z => {
-    z.addEventListener('click', () => {
-      const zone = z.dataset.zone;
-      const g = G;
-      if(!g.pendingOpsCard) return;
-      closeDropOverlay();
-      if(zone === 'event'){
-        playCardEvent(g.pendingOpsCard, g.activePlayer);
-        g.pendingOpsCard = null;
-        afterCardPlayed();
-      } else if(zone === 'ops'){
-        g.pendingOps = getOpsValue(g.pendingOpsCard, g.activePlayer);
-        if(g.pendingOps <= 0){ toast('该卡无 Ops'); g.pendingOpsCard = null; return; }
-        toast(`使用 ${g.pendingOps} Ops · 点击地图国家放置，或点右侧操作按钮政变/调整`);
-        el('actionButtons').classList.add('active');
-        document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('disabled'));
-        document.querySelector('.action-btn.ops').classList.add('active');
-        g.phase = 'playOps';
-        g.playerTurnCardPlayed = true;
-      } else if(zone === 'space'){
-        const step = spaceStepOf(g.pendingOpsCard, g.activePlayer);
-        if(step <= 0){ toast('该卡无太空步数'); g.pendingOpsCard = null; return; }
-        g.space[g.activePlayer] = Math.min(8, g.space[g.activePlayer] + step);
-        log(`太空竞赛 +${step}`, g.activePlayer);
-        if(window.FX) FX.rocket(g.activePlayer);
-        if(g.space[g.activePlayer] >= 8) declareWinner(g.activePlayer, '太空竞赛胜利');
-        g.pendingOpsCard = null;
-        afterCardPlayed();
-      } else if(zone === 'cancel'){
-        g.pendingOpsCard = null;
-      }
-      UI.render();
-    });
+    z.addEventListener('click', () => resolveZone(z.dataset.zone));
   });
 
   // 操作按钮
