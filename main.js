@@ -311,7 +311,7 @@ function bindEvents(){
     if(!g.pendingOpsCard) return false;
     if(zone === 'ops' && getOpsValue(g.pendingOpsCard, g.activePlayer) <= 0){ toast('该卡无 Ops'); return false; }
     if(zone === 'space' && spaceStepOf(g.pendingOpsCard, g.activePlayer) <= 0){ toast('该卡无太空步数'); return false; }
-    closeDropOverlay();
+    UI.closeDropOverlay();
     if(zone === 'event'){
       playCardEvent(g.pendingOpsCard, g.activePlayer);
       g.pendingOpsCard = null;
@@ -382,7 +382,7 @@ function bindEvents(){
 
   // 空格/回车结束回合
   document.addEventListener('keydown', (e) => {
-    if(e.key === 'Escape'){ closeDropOverlay(); return; }
+    if(e.key === 'Escape'){ UI.closeDropOverlay(); return; }
     if(e.key === ' ' && G.phase !== 'ended' && G.phase !== 'playOps'){
       e.preventDefault();
       endTurn();
@@ -449,6 +449,7 @@ function aiTurn(){
   // 显示
   const idx = g.hand[side].indexOf(card);
   if(idx >= 0) g.hand[side].splice(idx, 1);
+  discardCard(card);
   g.pendingOpsCard = card;
   UI.showCentralCard(card, mode, side, 3400);
   log(`AI(${side==='us'?'美国':'苏联'}) 打出：${card.zh} [${mode==='event'?'事件':mode==='ops'?'操作':'太空'}]`, 'sys');
