@@ -285,6 +285,10 @@ function bindEvents(){
     startOpts.side = b.dataset.side;
   }));
   el('btnStart').addEventListener('click', () => startGame());
+  // playOps 中的出口：右侧面板在窄屏下被隐藏，按钮必须挂在地图区
+  el('btnEndPlay').addEventListener('click', () => {
+    if(G.phase === 'playOps' && G.pendingOpsCard) closeOpsState();
+  });
 
   // 规则
   el('btnRules').addEventListener('click', () => el('rulesModal').classList.toggle('hidden'));
@@ -336,6 +340,10 @@ function bindEvents(){
       if(g.space[g.activePlayer] >= 8) declareWinner(g.activePlayer, '太空竞赛胜利');
       g.pendingOpsCard = null;
       afterCardPlayed();
+    } else if(zone === 'done'){
+      // 结束本次出牌：多 Ops 卡放不满时的唯一出口，否则永远卡在 playOps
+      closeOpsState();
+      return true;
     } else if(zone === 'cancel'){
       // 取消：把选定的卡还给手牌，别丢了
       if(g.pendingOpsCard){

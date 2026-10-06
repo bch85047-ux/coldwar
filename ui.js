@@ -325,6 +325,9 @@ const UI = (() => {
     const g = G;
     const box = el('turnInfo');
     if(!box) return;
+    // playOps 期间显示「结束本次出牌」——多 Ops 卡放不满时必须有的出口
+    const endBtn = el('btnEndPlay');
+    if(endBtn) endBtn.classList.toggle('hidden', !(g.phase === 'playOps' && g.pendingOpsCard));
     const bgCounts = {us:0, ussr:0, neutral:0};
     for(const cid of Object.keys(COUNTRIES)){
       if(!COUNTRIES[cid].battleground || COUNTRIES[cid].superpower) continue;
