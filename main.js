@@ -544,8 +544,11 @@ function bindAll(){
   });
 }
 
-/* ---------- 启动 ---------- */
-window.addEventListener('DOMContentLoaded', () => {
+/* ---------- 启动 ----------
+ * 脚本挂在 </body> 前，等 main.js 执行时 DOM 往往已经解析完，
+ * DOMContentLoaded 可能早已触发 → 不能只靠 addEventListener，必须判断 readyState。
+ */
+function boot(){
   if(window.MAP) MAP.init();
   if(window.FX) FX.init();
   if(window.MUSIC) MUSIC.init();
@@ -555,4 +558,9 @@ window.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => { if(window.MAP) MAP.fit(); }, 150);
   const ts = document.getElementById('turnSelect');
   if(ts) ts.classList.remove('hidden');
-});
+}
+if(document.readyState === 'loading'){
+  window.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
