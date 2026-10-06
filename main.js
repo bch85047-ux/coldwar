@@ -95,10 +95,10 @@ function finishOpsPlay(){
       // 纯 ops 卡不会
     }
   }
-  // 太空自动推进：无 ops 卡用于太空
+  // closeOpsState → finishPlay 内部已负责计数与切换，此处再调 nextActivePlayer
+  // 属于重复切换且该函数根本不存在（每次出 Ops 都会抛 ReferenceError，只是被 setTimeout 吞掉）
   setTimeout(() => {
     closeOpsState();
-    nextActivePlayer();
   }, 700);
 }
 
