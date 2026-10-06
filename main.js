@@ -118,9 +118,13 @@ async function finishPlay(){
   fillHandTo6(g.activePlayer);
   // 检查胜负
   checkWin();
+  // Ops 路径必须与事件/太空路径一样计数：一个回合 = 双方各出 1 张，满 2 次推进
+  // 漏掉这行会让一直出 Ops 的局卡在回合 1 永远推不动
+  g.playsThisTurn = (g.playsThisTurn || 0) + 1;
   UI.render();
   await new Promise(r => setTimeout(r, 900));
   if(G.phase === 'ended') return;
+  if(g.playsThisTurn >= 2){ endTurn(); return; }
   // 交换主动权给对手
   switchActive();
 }
