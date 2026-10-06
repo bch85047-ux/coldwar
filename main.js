@@ -322,7 +322,7 @@ function bindEvents(){
       afterCardPlayed();
     } else if(zone === 'ops'){
       g.pendingOps = getOpsValue(g.pendingOpsCard, g.activePlayer);
-      toast(`使用 ${g.pendingOps} Ops · 点击地图国家放置，或点右侧操作按钮政变/调整`);
+      toast(`使用 ${g.pendingOps} Ops · 点地图放置，可提前「结束」`);
       el('actionButtons').classList.add('active');
       document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('disabled'));
       document.querySelector('.action-btn.ops').classList.add('active');
@@ -368,7 +368,7 @@ function bindEvents(){
         afterCardPlayed();
       } else if(mode === 'ops'){
         g.pendingOps = getOpsValue(g.pendingOpsCard, g.activePlayer);
-        toast(`点击地图国家放置 ${g.pendingOps} Ops`);
+        toast(`点击地图放置 ${g.pendingOps} Ops · 放不满可点「结束」或按空格`);
         g.phase = 'playOps';
       } else if(mode === 'space'){
         const step = spaceStepOf(g.pendingOpsCard, g.activePlayer);
@@ -379,6 +379,10 @@ function bindEvents(){
         if(g.space[g.activePlayer] >= 8) declareWinner(g.activePlayer, '太空竞赛胜利');
         g.pendingOpsCard = null;
         afterCardPlayed();
+      } else if(mode === 'done'){
+        // 结束本次出牌：剩余 Ops 作废，卡进废牌堆
+        closeOpsState();
+        return;
       }
       UI.render();
     });
@@ -387,8 +391,10 @@ function bindEvents(){
   // 空格/回车结束回合
   document.addEventListener('keydown', (e) => {
     if(e.key === 'Escape'){ UI.closeDropOverlay(); return; }
-    if(e.key === ' ' && G.phase !== 'ended' && G.phase !== 'playOps'){
+    if(e.key === ' ' && G.phase !== 'ended'){
       e.preventDefault();
+      // playOps 中：结束本次出牌（剩余 Ops 作废），否则多 Ops 卡放不满会死锁
+      if(G.phase === 'playOps'){ closeOpsState(); return; }
       endTurn();
     }
   });
