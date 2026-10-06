@@ -992,17 +992,4 @@ function endTurn(){
   }
 }
 
-/* ===== 展示效果 ===== */
-function showTurnOverlay(){
-  const overlay = document.getElementById('turnOverlay');
-  const text = document.getElementById('turnOverlayText');
-  const sub = document.getElementById('turnOverlaySub');
-  if(!overlay) return;
-  const pName = G.activePlayer === 'us' ? '美国' : '苏联';
-  const periodName = getPeriodName(getPeriod(G.turn));
-  text.textContent = `${pName} 出牌`;
-  sub.textContent = `回合 ${G.turn} · ${periodName}`;
-  overlay.classList.remove('hidden');
-  overlay.classList.remove('fade-out');
-  setTimeout(()=>overlay.classList.add('fade-out'), 1400);
-}
+/* showTurnOverlay 只在 main.js 实现一次，避免脚本顺序导致重复定义互相覆盖 */

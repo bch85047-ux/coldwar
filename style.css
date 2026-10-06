@@ -709,6 +709,7 @@ header {
   justify-content: center;
   z-index: 55;
   opacity: 0;
+  pointer-events: none;  /* 纯视觉层，任何情况下都不能挡输入 */
   animation: turnShow 1.5s forwards;
 }
 .turn-overlay.hidden { display: none; }

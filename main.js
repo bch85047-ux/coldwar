@@ -250,12 +250,18 @@ function showTurnOverlay(){
   const pNameEn = G.activePlayer === 'us' ? 'UNITED STATES' : 'SOVIET UNION';
   text.textContent = `${pName} 出牌`;
   sub.textContent = `回合 ${G.turn} · ${{early:'早期战争',mid:'危机战争',late:'冷战晚期'}[getPeriod(G.turn)]} · ${pNameEn}`;
-  overlay.classList.remove('hidden');
-  overlay.classList.remove('fade-out');
+  // 重启动画：清掉上一轮状态，reflow 让 turnShow(1.5s) 从头跑
+  overlay.classList.remove('hidden', 'fade-out');
   void overlay.offsetWidth;
-  overlay.classList.add('fade-out');
   if(window.FX) FX.flash(G.activePlayer === 'us' ? '#4a7fb5' : '#c8102e', 8);
   if(window.FX) FX.shake(5);
+  // 1.4s 后开始淡出，2.1s 无条件收起
+  // 兜底原因：动画依赖 CSS transition/animation，标签页被挂起或用户开
+  // reduced-motion 时可能永远停在中间帧，不留兜底就会永远挡屏
+  clearTimeout(showTurnOverlay._fade);
+  clearTimeout(showTurnOverlay._hide);
+  showTurnOverlay._fade = setTimeout(() => overlay.classList.add('fade-out'), 1400);
+  showTurnOverlay._hide = setTimeout(() => overlay.classList.add('hidden'), 2100);
 }
 
 /* ---------- 事件绑定 ---------- */
