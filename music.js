@@ -293,3 +293,4 @@ const MUSIC = (() => {
     TRACKS,
   };
 })();
+window.MUSIC = MUSIC;

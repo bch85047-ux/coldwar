@@ -324,18 +324,13 @@ const MAP = (() => {
   let panning = false, panStart = null;
 
   function init(){
-    if(!window.__mapLog) window.__mapLog = [];
-    window.__mapLog.push('init.enter rs=' + document.readyState + ' svg=' + !!document.getElementById('mapSvg') + ' layer=' + !!document.getElementById('countryLayer'));
-    if(!layer) layer = document.getElementById('countryLayer');
+            if(!layer) layer = document.getElementById('countryLayer');
     if(!canvasEl) canvasEl = document.getElementById('mapCanvas');
     const host = layer && layer.parentElement;
-    if(!host){ window.__mapLog.push('init.earlyReturn host=' + host + ' layer=' + layer); console.warn('[MAP] countryLayer 不存在'); return; }
-    window.__mapLog.push('init.build parent=' + host.id);
-    buildMapSVG();
-    window.__mapLog.push('init.svgDone children=' + (document.getElementById('mapSvg')||{}).children?.length);
-    buildTiles();
-    window.__mapLog.push('init.tilesDone pos=' + Object.keys(pos).length + ' layerCh=' + document.getElementById('countryLayer').children.length);
-    fit();
+    if(!host){ console.warn('[MAP] countryLayer 不存在'); return; }
+        buildMapSVG();
+        buildTiles();
+        fit();
     if(typeof ResizeObserver !== 'undefined'){
       new ResizeObserver(() => { fitKeep(); }).observe(host);
     } else {
@@ -403,3 +398,4 @@ const MAP = (() => {
   return {init, layout, buildTiles, updateTile, updateAll, fit, apply, pick,
           centerOn, xyOf, zoomAt, setZoom, getScale, on, pos: () => pos, nodes: () => nodes};
 })();
+window.MAP = MAP;

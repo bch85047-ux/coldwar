@@ -352,3 +352,5 @@ NET.initUI = function(){
   window.playNetFx = playNetFx;
   window.startNetGame = startNetGame;
 };
+window.NET = NET;
+window.PROTO = PROTO;

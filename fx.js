@@ -406,3 +406,5 @@ const SFX = (() => {
   }
   return { play, setEnabled };
 })();
+window.FX = FX;
+window.SFX = SFX;

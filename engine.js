@@ -1057,3 +1057,5 @@ function finalize(){
 
 
 /* showTurnOverlay 只在 main.js 实现一次，避免脚本顺序导致重复定义互相覆盖 */
+window.G = G;
+window.REGION_SCORES = REGION_SCORES;

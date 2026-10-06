@@ -611,3 +611,4 @@ const UI = (() => {
     showDragStrip, hideDragStrip,
   };
 })();
+window.UI = UI;
