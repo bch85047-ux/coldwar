@@ -1,51 +1,46 @@
 #!/bin/sh
-# 冷战热斗 · 原曲下载器
+# 冷战热斗 · 原曲下载器（真实年代录音，非合成非改编）
 # 用法: sh fetch_music.sh
-# 下载目标: assets/music/us.mp3 和 assets/music/ussr.mp3
-# 来源: archive.org (78rpm 库 + 苏联歌曲库)
+#
+# us.mp3   In the Moonlight            1928  Grand Symphony Orchestra / 78rpm 转录
+# ussr.mp3 На сопках Маньчжурии         1909  Ilya Shatrov 原始录音
+#
+# 两首都经 loudnorm 归一到 I=-18 LUFS / TP=-2，切换阵营不跳音量。
 
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)/assets/music"
 mkdir -p "$DIR"
+UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
 
-US_ITEMS="78_in-the-moonlight_art-mooney-and-his-orchestra-j"
-USSR_ITEMS="in-the-far-manchurian-hills:soviet-1940s-war-songs:manchurian-hills"
+US_RAW="$DIR/us.raw.mp3"
+USSR_RAW="$DIR/ussr.raw.mp4"
 
-echo "=== 美国曲: In the Moonlight (1928) ==="
-for item in $US_ITEMS; do
-  for f in "$item.mp3" "track1.mp3"; do
-    url="https://archive.org/download/$item/$f"
-    echo "  尝试 $url"
-    if curl -sSL --max-time 60 --max-filesize 15000000 -o "$DIR/us.mp3" "$url" 2>/dev/null; then
-      if [ -s "$DIR/us.mp3" ] && head -c 2 "$DIR/us.mp3" | grep -q "ID3"; then
-        echo "  ✓ 成功 $url"
-        exit 0
-      fi
-    fi
-  done
-  sleep 3
-done
+echo "=== 1/4 美国曲：In the Moonlight（78rpm 原始转录） ==="
+curl -sSL --max-time 180 -A "$UA" -o "$US_RAW" \
+  "https://archive.org/download/78_in-the-moonlight_grand-symphony-orchestra-a-w-ketelbey_gbia3007529a/IN%20THE%20MOONLIGHT%20-%20GRAND%20SYMPHONY%20ORCHESTRA.mp3"
+[ -s "$US_RAW" ] || { echo "  下载失败"; exit 1; }
+echo "  拿到 $(wc -c < "$US_RAW") 字节"
 
-echo "=== 苏联曲: В далёкой Маньчжурии (1945) ==="
-for item in $USSR_ITEMS; do
-  for f in "$item.mp3" "track1.mp3"; do
-    url="https://archive.org/download/$item/$f"
-    echo "  尝试 $url"
-    if curl -sSL --max-time 60 --max-filesize 15000000 -o "$DIR/ussr.mp3" "$url" 2>/dev/null; then
-      if [ -s "$DIR/ussr.mp3" ] && head -c 2 "$DIR/ussr.mp3" | grep -q "ID3"; then
-        echo "  ✓ 成功 $url"
-        exit 0
-      fi
-    fi
-  done
-  sleep 3
-done
+echo "=== 2/4 苏联曲：На сопках Маньчжурии（1909 录音，mp4 里抽音轨） ==="
+curl -sSL --max-time 180 -A "$UA" -o "$USSR_RAW" \
+  "https://archive.org/download/youtube-sRa-M7M88Zk/sRa-M7M88Zk.mp4"
+[ -s "$USSR_RAW" ] || { echo "  下载失败"; exit 1; }
+echo "  拿到 $(wc -c < "$USSR_RAW") 字节"
+
+echo "=== 3/4 提取音轨 ==="
+ffmpeg -y -v error -i "$US_RAW" -c:a libmp3lame -q:a 2 "$DIR/us.pre.mp3"
+ffmpeg -y -v error -i "$USSR_RAW" -vn -c:a libmp3lame -q:a 2 "$DIR/ussr.pre.mp3"
+
+echo "=== 4/4 响度归一化（-18 LUFS / 峰值 -2 dB） ==="
+ffmpeg -y -v error -i "$DIR/us.pre.mp3"   -af "loudnorm=I=-18:TP=-2:LRA=11" -c:a libmp3lame -q:a 2 "$DIR/us.mp3"
+ffmpeg -y -v error -i "$DIR/ussr.pre.mp3" -af "loudnorm=I=-18:TP=-2:LRA=11" -c:a libmp3lame -q:a 2 "$DIR/ussr.mp3"
+
+rm -f "$US_RAW" "$USSR_RAW" "$DIR/us.pre.mp3" "$DIR/ussr.pre.mp3"
 
 echo ""
-echo "下载失败。手动流程:"
-echo "  1. 浏览器打开 https://archive.org/search?query=in+the+moonlight&sin=TGQyYzYzN2NjMjBjLmVjZTk3OTM%3D"
-echo "  2. 选一个 78rpm 版本，下载 mp3"
-echo "  3. 改名为 us.mp3 放到 assets/music/"
-echo "  4. 苏联曲同理 (搜 'В далёкой Маньчжурии')"
+echo "完成："
+for f in us.mp3 ussr.mp3; do
+  [ -s "$DIR/$f" ] && echo "  $f  $(wc -c < "$DIR/$f") 字节" || echo "  $f  缺失"
+done
 echo ""
-echo "没有 mp3 也能玩 —— music.js 会用 Web Audio 合成兜底旋律。"
+echo "详见 assets/music/SOURCES.md"

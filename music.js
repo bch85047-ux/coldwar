@@ -5,8 +5,8 @@
 const MUSIC = (() => {
   const ASSET_DIR = 'assets/music/';
   const TRACKS = {
-    us:   { file: ASSET_DIR + 'us.mp3',   name: 'In the Moonlight (1928)' },
-    ussr: { file: ASSET_DIR + 'ussr.mp3', name: 'В далёкой Маньчжурии (1945)' },
+    us:   { file: ASSET_DIR + 'us.mp3',   name: 'In the Moonlight · 78rpm 原始录音' },
+    ussr: { file: ASSET_DIR + 'ussr.mp3', name: 'На сопках Маньчжурии · 1909 年原始录音' },
   };
 
   let ctx = null;
@@ -14,7 +14,9 @@ const MUSIC = (() => {
   let noiseNodes = [];          // 黑胶/嘶声噪声源
   let cur = null;               // 当前正在播的 {player, audio, gain, src}
   let playing = false;
-  let aged = true;              // 做旧开关
+  // 用的是真实年代录音（78rpm / 1909 年蜡筒），本身就有那个年代的音色，
+  // 再叠做旧只会把音质糊掉。默认关，想听黑胶味再开。
+  let aged = false;
   let loaded = {};              // {us: Audio|null, ussr: Audio|null}
   let synthTimer = null;
 
@@ -27,15 +29,15 @@ const MUSIC = (() => {
   /* ---------- 做旧链 ---------- */
   function buildAgingChain(){
     const c = ac(); if(!c) return null;
-    master = c.createGain(); master.gain.value = 0.65;
+    master = c.createGain(); master.gain.value = 0.78;
 
     // 低通染色（模拟旧喇叭/旧电台）
-    const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=6200; lp.Q.value=0.7;
+    const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=12500; lp.Q.value=0.6;
     // 高通削掉浑浊
-    const hp = c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=95;
+    const hp = c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=45;
     // 轻微双峰均衡（老式唱片音色）
-    const p1 = c.createBiquadFilter(); p1.type='peaking'; p1.frequency.value=3200; p1.gain.value=2.2;
-    const p2 = c.createBiquadFilter(); p2.type='peaking'; p2.frequency.value=260; p2.gain.value=-2.5;
+    const p1 = c.createBiquadFilter(); p1.type='peaking'; p1.frequency.value=3200; p1.gain.value=0.8;
+    const p2 = c.createBiquadFilter(); p2.type='peaking'; p2.frequency.value=260; p2.gain.value=-0.8;
 
     // 声道宽度压缩（旧单声道感）
     const merger = c.createChannelMerger(1);
@@ -48,7 +50,7 @@ const MUSIC = (() => {
     // 黑胶底噪（持续）
     const brown = makeNoiseBuffer(c, 2.0, 'brown');
     const nsrc = c.createBufferSource(); nsrc.buffer = brown; nsrc.loop = true;
-    const ng = c.createGain(); ng.gain.value = aged ? 0.028 : 0;
+    const ng = c.createGain(); ng.gain.value = aged ? 0.010 : 0;
     const nlp = c.createBiquadFilter(); nlp.type='lowpass'; nlp.frequency.value=1800;
     nsrc.connect(nlp).connect(ng).connect(master);
     nsrc.start();
@@ -143,13 +145,13 @@ const MUSIC = (() => {
       stop();
       const src = c.createMediaElementSource(audio);
       const gain = c.createGain(); gain.gain.value = 0.9;
-      const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value= aged?5800:16000; lp.Q.value=0.6;
-      const hp = c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value= aged?110:20;
+      const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value= aged?11000:18000; lp.Q.value=0.6;
+      const hp = c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value= aged?60:20;
       // wow&flutter: LFO → gain 微摆（近似 playbackRate 抖动）
       const lfo = c.createOscillator(); lfo.frequency.value = 0.7;
       const lfo2 = c.createOscillator(); lfo2.frequency.value = 5.3;
-      const lfoG = c.createGain(); lfoG.gain.value = aged ? 0.05 : 0;
-      const lfoG2 = c.createGain(); lfoG2.gain.value = aged ? 0.012 : 0;
+      const lfoG = c.createGain(); lfoG.gain.value = aged ? 0.012 : 0;
+      const lfoG2 = c.createGain(); lfoG2.gain.value = aged ? 0.003 : 0;
       lfo.connect(lfoG).connect(gain.gain);
       lfo2.connect(lfoG2).connect(gain.gain);
       src.connect(hp).connect(lp).connect(gain).connect(master);
