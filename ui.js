@@ -373,6 +373,7 @@ const UI = (() => {
       if(i === 4) cls.push('midline');
       s += `<span class="${cls.join(' ')}"></span>`;
     }
+    s += `<span class="vp-num ${player}">${v}</span>`;
     return s;
   }
 

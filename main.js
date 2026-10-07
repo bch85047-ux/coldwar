@@ -545,6 +545,16 @@ function bindAll(){
   document.querySelectorAll('#opsPanel .action-btn').forEach(b => {
     b.addEventListener('click', e => { e.stopPropagation(); onActionBtn(b.dataset.zone); });
   });
+  // 投放面板区域：点击即出牌（与拖拽等效）
+  document.querySelectorAll('.drop-zone').forEach(z => {
+    z.addEventListener('click', e => {
+      e.stopPropagation();
+      const zone = z.dataset.zone;
+      if(zone && !z.classList.contains('disabled') && G.pendingOpsCard){
+        resolveZone(zone);
+      }
+    });
+  });
   // 音乐 / 特效
   const mb = document.getElementById('btnMusic');
   // 音乐：按钮切播放/暂停，同时刷新按钮文案；滑条控总音量

@@ -164,7 +164,7 @@ const MAP = (() => {
     for(const [cid, c] of Object.entries(COUNTRIES)){
       const p = pos[cid];
       if(!p) continue;
-      const nm = c.name.length > 5 ? c.name.slice(0, 5) : c.name;
+      const nm = c.name;
       const sz = (p.w < 34 || p.h < 32) ? ' tile-xs' : (p.w < 44 || p.h < 44) ? ' tile-sm' : '';
       html += `<div class="country${c.superpower ? ' sp' : ''}${sz} ${c.battleground ? 'bg' : ''}"
         data-cid="${cid}" style="left:${p.x.toFixed(1)}px;top:${p.y.toFixed(1)}px;width:${p.w.toFixed(1)}px;height:${p.h.toFixed(1)}px">

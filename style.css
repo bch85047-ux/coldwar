@@ -65,10 +65,7 @@ input, select, textarea { font-family: inherit; }
   overflow-x: hidden;
   height: 100vh;
   height: 100dvh;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(74, 127, 181, .06), transparent 60%),
-    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(200, 16, 46, .06), transparent 60%),
-    var(--bg);
+  background: var(--bg);
 }
 
 main {
@@ -84,7 +81,7 @@ header {
   align-items: center;
   gap: 14px;
   padding: 0 16px;
-  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  background: var(--panel);
   border-bottom: 1px solid var(--line-2);
   box-shadow: 0 1px 0 rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.03);
   z-index: 20;
@@ -316,7 +313,7 @@ header {
    位置也写进内联 style —— 所以这里只定义外观，不再设 width/left/top。 */
 .country {
   position: absolute;
-  background: linear-gradient(180deg, #2a3542, #1c2431);
+  background: #1e2836;
   border: 1px solid rgba(201,169,106,.32);
   border-radius: 2px;
   padding: 1.5px 2px 2px;
@@ -335,15 +332,14 @@ header {
 .country:hover { transform: scale(1.14); z-index: 9; box-shadow: 0 4px 14px rgba(0,0,0,.75); }
 .country:active { transform: scale(1.06); }
 .country .cname-mini {
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-weight: 600;
   color: var(--ink);
-  letter-spacing: .1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  letter-spacing: .05px;
+  overflow-wrap: break-word;
+  word-break: break-all;
   max-width: 100%;
-  line-height: 1.15;
+  line-height: 1.08;
 }
 .country .cnum {
   position: absolute;
@@ -378,12 +374,12 @@ header {
 .country.tile-xs .cinf i { font-size: 5px; }
 
 .country.us-ctrl {
-  background: linear-gradient(180deg, #2b4a6b, #1e3450);
+  background: #24405f;
   border-color: var(--us);
   box-shadow: 0 2px 6px rgba(0,0,0,.55), inset 0 0 0 1px rgba(111,163,216,.28);
 }
 .country.ussr-ctrl {
-  background: linear-gradient(180deg, #7a0a1c, #520612);
+  background: #6b0a1c;
   border-color: var(--ussr);
   box-shadow: 0 2px 6px rgba(0,0,0,.55), inset 0 0 0 1px rgba(232,69,92,.3);
 }
@@ -457,14 +453,14 @@ header {
 
 /* 超级大国标记 */
 .country.sp {
-  background: linear-gradient(180deg, #2f2f38, #1b1b22);
+  background: #222228;
   border-width: 1.5px;
   border-radius: 3px;
   justify-content: center;
   overflow: visible;
 }
-.country.sp.us { border-color: var(--us); background: linear-gradient(180deg, #24405f, #172a3f); }
-.country.sp.ussr { border-color: var(--ussr); background: linear-gradient(180deg, #5d0a18, #3b050c); }
+.country.sp.us { border-color: var(--us); background: #1e3654; }
+.country.sp.ussr { border-color: var(--ussr); background: #4a0a14; }
 .country.sp .sp-flag {
   font-size: 11px;
   font-weight: 800;
@@ -504,7 +500,7 @@ header {
 .display-card {
   width: 300px;
   min-height: 250px;
-  background: linear-gradient(180deg, #f2ead6, #ddd2b4);
+  background: #eee5d0;
   border: 2px solid #1a2432;
   border-left: 7px solid var(--gold);
   padding: 13px 15px 11px;
@@ -571,7 +567,7 @@ header {
 
 /* ---------- 手牌区 ---------- */
 .hand-bar {
-  background: linear-gradient(180deg, var(--panel), #0a1119);
+  background: var(--panel);
   border-top: 1px solid var(--line-2);
   padding: 8px 14px;
   display: flex;
@@ -604,7 +600,7 @@ header {
 .card {
   flex: 0 0 148px;
   height: 152px;
-  background: linear-gradient(180deg, #eee5d0, #d8cdb0);
+  background: #e8dfc8;
   border: 1.5px solid #1a2432;
   border-left: 5px solid var(--gold);
   padding: 8px 10px 7px;
@@ -623,7 +619,7 @@ header {
 }
 .card.us { border-left-color: var(--us); }
 .card.ussr { border-left-color: var(--ussr); }
-.card.scoring { border-left-color: var(--gold-2); background: linear-gradient(180deg, #f5eeda, #e2d7b8); }
+.card.scoring { border-left-color: var(--gold-2); background: #f0e8d0; }
 
 .card .cname {
   font-family: Georgia, serif;
@@ -716,14 +712,26 @@ header {
 .vp-track-bar { display: flex; gap: 2px; flex: 1; }
 .vp-track-bar span {
   flex: 1;
-  height: 13px;
-  background: rgba(201,169,106,.1);
-  border: 1px solid var(--line);
+  height: 14px;
+  background: rgba(201,169,106,.08);
+  border: 1px solid rgba(201,169,106,.18);
   border-radius: 1px;
 }
-.vp-track-bar span.on { background: linear-gradient(180deg, var(--gold-2), var(--gold)); border-color: var(--gold-2); }
+.vp-track-bar span.on { background: var(--gold); border-color: var(--gold-2); box-shadow: 0 0 4px rgba(201,169,106,.4); }
 .vp-track-bar span.win-line { border-color: rgba(255,26,42,.6); }
 .vp-track-bar span.midline { border-color: rgba(201,169,106,.4); }
+.vp-track-bar .vp-num {
+  min-width: 20px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+  line-height: 14px;
+  border-radius: 1px;
+}
+.vp-track-bar .vp-num.us { color: var(--us-bright); background: rgba(74,127,181,.15); }
+.vp-track-bar .vp-num.ussr { color: var(--ussr-bright); background: rgba(200,16,46,.15); }
 
 .ops-info, .space-info, .hand-info {
   display: flex;
@@ -841,7 +849,7 @@ header {
   position: relative;
   width: min(330px, 82vw);
   padding: 13px 14px;
-  background: linear-gradient(180deg, #f2ead8, #ded2b4);
+  background: #eee5d0;
   border: 1px solid rgba(0,0,0,.45);
   border-left: 5px solid var(--gold);
   border-radius: 5px;
@@ -852,7 +860,7 @@ header {
 }
 .drop-card.us { border-left-color: var(--us); }
 .drop-card.ussr { border-left-color: var(--ussr); }
-.drop-card.scoring { border-left-color: var(--gold-2); background: linear-gradient(180deg, #f5eeda, #e2d7b8); }
+.drop-card.scoring { border-left-color: var(--gold-2); background: #f0e8d0; }
 .drop-card .cname {
   font-family: Georgia, serif;
   font-size: 17px;
@@ -946,7 +954,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   position: relative;
   min-width: 74px;
   padding: 9px 12px 8px;
-  background: linear-gradient(180deg, #1b2534, #121a26);
+  background: #1b2534;
   border: 1.5px dashed rgba(201,169,106,.4);
   border-radius: 3px;
   color: var(--ink);
@@ -1096,7 +1104,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .modal-screen.hidden { display: none; }
 
 .modal {
-  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  background: var(--panel);
   border: 1px solid var(--line-2);
   box-shadow: 0 24px 70px rgba(0,0,0,.8);
   padding: 26px 28px;
@@ -1190,7 +1198,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .btn-primary {
   width: 100%;
   padding: 13px;
-  background: linear-gradient(180deg, var(--gold-2), var(--gold));
+  background: var(--gold);
   color: #1a1408;
   font-size: 14px;
   font-weight: 800;
@@ -1538,7 +1546,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 }
 .opt-btn:hover { border-color: var(--gold); color: var(--ink); background: rgba(201,169,106,.1); }
 .opt-btn.selected {
-  background: linear-gradient(180deg, rgba(201,169,106,.3), rgba(201,169,106,.14));
+  background: rgba(201,169,106,.2);
   border-color: var(--gold-2);
   color: var(--gold-2);
   box-shadow: 0 0 0 1px rgba(224,200,144,.3), 0 4px 12px rgba(0,0,0,.4);
