@@ -433,5 +433,7 @@ function getPeriodName(p){
 }
 
 /* ===== 胜利判定 ===== */
-const WIN_VP = 10;
+const WIN_VP = 20;   // 40 局实测：US 中位 9 / max 17，USSR 中位 9 / max 18。
+                     // 这条线实际意味着「几乎不会提前结束」，一局基本跑满 10 回合
+                     // 再由终局分数定胜负。想缩短就把这里调小。
 const SPACE_MAX = 8;
