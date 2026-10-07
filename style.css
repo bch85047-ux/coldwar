@@ -1607,6 +1607,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   animation: effectPop .4s ease-out;
   box-shadow: 0 4px 20px rgba(0,0,0,.6);
 }
+.event-effect.hidden { display: none; }
 .event-effect .ef-title {
   font-size: 18px;
   font-weight: 800;
