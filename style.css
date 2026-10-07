@@ -1594,31 +1594,42 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 /* ---------- 事件效果显示 ---------- */
 .event-effect {
   position: absolute;
-  top: 15%;
+  top: 12%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 20;
-  background: rgba(10,16,24,.92);
-  border: 2px solid rgba(201,169,106,.4);
-  border-radius: 6px;
-  padding: 14px 24px;
+  z-index: 25;
+  background: linear-gradient(135deg, rgba(15,20,30,.96), rgba(25,30,45,.96));
+  border: 2px solid rgba(201,169,106,.6);
+  border-radius: 8px;
+  padding: 16px 28px;
   text-align: center;
   pointer-events: none;
-  animation: effectPop .4s ease-out;
-  box-shadow: 0 4px 20px rgba(0,0,0,.6);
+  animation: effectPop .35s ease-out;
+  box-shadow: 0 6px 30px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.06);
+  min-width: 180px;
+  backdrop-filter: blur(4px);
 }
 .event-effect.hidden { display: none; }
 .event-effect .ef-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
-  color: var(--gold-2);
+  color: #f5e6b8;
   margin-bottom: 6px;
-  letter-spacing: 1px;
+  letter-spacing: .5px;
+  text-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+.event-effect .ef-num {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(245,230,184,.7);
+  margin-right: 4px;
 }
 .event-effect .ef-detail {
   font-size: 14px;
-  color: var(--ink);
+  color: #e0e0e0;
   font-weight: 600;
+  line-height: 1.4;
 }
 .event-effect .dice {
   display: inline-block;
@@ -1632,9 +1643,9 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .event-effect .dice.bad { background: rgba(200,16,46,.3); color: var(--ussr-bright); }
 .event-effect .dice small { font-size: 10px; opacity: .7; }
 @keyframes effectPop {
-  0% { transform: translateX(-50%) scale(.8); opacity: 0; }
-  50% { transform: translateX(-50%) scale(1.05); }
-  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+  0% { transform: translateX(-50%) scale(.9) translateY(-10px); opacity: 0; }
+  60% { transform: translateX(-50%) scale(1.02) translateY(0); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1) translateY(0); opacity: 1; }
 }
 
 /* ---------- Ops 操作面板（放 Ops 阶段浮在地图右下）---------- */

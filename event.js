@@ -52,14 +52,25 @@ const EVENT = (() => {
   }
 
   /* ---------- 视觉反馈 ---------- */
-  function showEffect(title, detail, color){
+  function showEffect(title, detail, opts){
     const el = document.getElementById('eventEffect');
     if(!el) return;
-    el.innerHTML = `<div class="ef-title">${title}</div><div class="ef-detail">${detail}</div>`;
+    // 兼容：第三个参数可以是颜色字符串或 opts 对象
+    let color, cardNum, side;
+    if(typeof opts === 'string'){
+      color = opts;
+    } else if(opts){
+      color = opts.color;
+      cardNum = opts.cardNum;
+      side = opts.side;
+    }
+    const sideColor = color || (side === 'us' ? 'rgba(74,127,181,.7)' : side === 'ussr' ? 'rgba(200,16,46,.7)' : 'rgba(201,169,106,.7)');
+    const numHtml = cardNum ? `<span class="ef-num">#${cardNum}</span> ` : '';
+    el.innerHTML = `<div class="ef-title">${numHtml}${title}</div><div class="ef-detail">${detail}</div>`;
+    el.style.borderColor = sideColor;
     el.classList.remove('hidden');
-    el.style.borderColor = color || 'rgba(201,169,106,.4)';
     clearTimeout(showEffect._t);
-    showEffect._t = setTimeout(() => el.classList.add('hidden'), 2500);
+    showEffect._t = setTimeout(() => el.classList.add('hidden'), 3200);
   }
 
   function showDiceRoll(rolls, mods, result){
