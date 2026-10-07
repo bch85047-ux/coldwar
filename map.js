@@ -228,7 +228,8 @@ const MAP = (() => {
 
   /* ---------- 视图：缩放与平移 ---------- */
   function clamp(){
-    const s = Math.max(fitS * 0.55, Math.min(fitS * 3.4, view.s));
+    const minS = fitS * 0.55, maxS = fitS * 3.4;
+    const s = Math.max(minS, Math.min(maxS, view.s));
     view.s = s;
     const w = DW * s, h = DH * s;
     const pad = 60;
@@ -255,8 +256,9 @@ const MAP = (() => {
     fitS = Math.min(cw / DW, ch / DH);
     fitPx = (cw - DW * fitS) / 2;
     fitPy = (ch - DH * fitS) / 2;
-    view.s = fitS; view.px = fitPx; view.py = fitPy;
-    clamp(); apply();
+    // 直接更新 view 对象
+    view = { s: fitS, px: fitPx, py: fitPy };
+    apply();
   }
 
   function zoomAt(factor, cx, cy){
