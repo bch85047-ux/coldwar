@@ -507,6 +507,634 @@ const EVENT = (() => {
     sfx('score');
   };
 
+  // #36: Brush War - attack low stability country
+  effects[36] = function(card, player){
+    const targets = Object.keys(window.COUNTRIES).filter(k => {
+      const c = window.COUNTRIES[k];
+      return c.stability <= 2 && !c.superpower;
+    });
+    if(!targets.length){
+      showEffect('小规模战争', '无目标', '#ffcc00');
+      return;
+    }
+    const t = targets[Math.floor(Math.random() * targets.length)];
+    const g = window.G;
+    const opp = opponent(player);
+    const roll = rollDie(0);
+    if(roll >= 3){
+      addVP(player, 1);
+      remInf(opp, t, getInf(opp, t));
+      addInf(player, t, 1);
+      showEffect('小规模战争', `攻击 ${window.COUNTRIES[t]?.zh || t} · 骰 ${roll} · +1 VP`, '#ffcc00');
+      flash('#ffcc00', 10);
+      sfx('roll');
+    } else {
+      showEffect('小规模战争', `攻击 ${window.COUNTRIES[t]?.zh || t} · 骰 ${roll} · 失败`, '#ff6600');
+      sfx('roll');
+    }
+  };
+
+  // #37-38: Scoring cards (handled by effects.scoring)
+
+  // #39: Arms Race - both players +1 VP
+  effects[39] = function(card, player){
+    const roll = rollDie(0);
+    if(roll <= 3){
+      addVP(player, 1);
+      showEffect('军备竞赛', `骰 ${roll} · +1 VP`, '#ffcc00');
+    } else {
+      showEffect('军备竞赛', `骰 ${roll} · 无效果`, '#ffcc00');
+    }
+    sfx('roll');
+  };
+
+  // #40: Cuban Missile Crisis - DEFCON to 2, US discards event
+  effects[40] = function(card, player){
+    window.G.defcon = 2;
+    showEffect('古巴导弹危机', 'DEFCON = 2 · 美国需弃事件', '#c8102e');
+    shake(6);
+    flash('#c8102e', 12);
+    sfx('defcon');
+  };
+
+  // #41: Nuclear Submarines - US +2 VP, DEFCON +1
+  effects[41] = function(card, player){
+    addVP('us', 2);
+    changeDefcon(1);
+    showEffect('核潜艇', '美国 +2 VP · DEFCON +1', '#4a7fb5');
+    sfx('score');
+  };
+
+  // #42: Quagmire - US loses 2 Ops this turn
+  effects[42] = function(card, player){
+    window.G.flags.quagmire = true;
+    showEffect('越南泥潭', '美国本回合 Ops -2', '#c8102e');
+    sfx('card');
+  };
+
+  // #43: SALT Negotiations - DEFCON +1, both draw card
+  effects[43] = function(card, player){
+    changeDefcon(1);
+    window.drawCard && window.drawCard('us', 1);
+    window.drawCard && window.drawCard('ussr', 1);
+    showEffect('SALT 谈判', 'DEFCON +1 · 双方抽 1 牌', '#ffcc00');
+    sfx('card');
+  };
+
+  // #44: Bear Trap - USSR +2 VP, US loses 2 Ops
+  effects[44] = function(card, player){
+    addVP('ussr', 2);
+    window.G.flags.quagmire = true;
+    showEffect('熊陷阱', '苏联 +2 VP · 美国 Ops -2', '#c8102e');
+    sfx('score');
+  };
+
+  // #45: Summit - each player draws 2 cards
+  effects[45] = function(card, player){
+    window.drawCard && window.drawCard('us', 2);
+    window.drawCard && window.drawCard('ussr', 2);
+    showEffect('峰会', '双方各抽 2 牌', '#ffcc00');
+    sfx('card');
+  };
+
+  // #46: How I Learned to Stop Worrying - DEFCON -1, USSR +VP
+  effects[46] = function(card, player){
+    changeDefcon(-1);
+    const vp = 5 - window.G.defcon;
+    addVP('ussr', vp);
+    showEffect('奇爱博士', `DEFCON -1 · 苏联 +${vp} VP`, '#c8102e');
+    shake(4);
+    sfx('defcon');
+  };
+
+  // #47: Junta - roll for influence
+  effects[47] = function(card, player){
+    const roll = rollDie(0);
+    if(roll <= 3){
+      const latam = ['venezuela','cuba','mexico','nicaragua','panama','costa_rica','bolivia','argentina','chile','peru','colombia'];
+      const t = latam[Math.floor(Math.random() * latam.length)];
+      addInf('ussr', t, 2);
+      showEffect('军政府', `骰 ${roll} · ${window.COUNTRIES[t]?.zh} +2 苏联`, '#c8102e');
+    } else {
+      const africa = ['angola','zambia','mozambique','congo','zimbabwe','sudan','egypt','libya'];
+      const t = africa[Math.floor(Math.random() * africa.length)];
+      addInf('ussr', t, 2);
+      showEffect('军政府', `骰 ${roll} · ${window.COUNTRIES[t]?.zh} +2 苏联`, '#c8102e');
+    }
+    sfx('roll');
+  };
+
+  // #48: Kitchen Debates - roll for VP
+  effects[48] = function(card, player){
+    const roll = rollDie(0);
+    if(roll >= 4){
+      addVP(player, 1);
+      showEffect('厨房辩论', `骰 ${roll} · ${player==='us'?'美国':'苏联'} +1 VP`, '#ffcc00');
+    } else {
+      showEffect('厨房辩论', `骰 ${roll} · 无效果`, '#ffcc00');
+    }
+    sfx('roll');
+  };
+
+  // #49: Missile Envy - DEFCON +1, opponent draws card
+  effects[49] = function(card, player){
+    changeDefcon(1);
+    window.drawCard && window.drawCard(player, 1);
+    showEffect('导弹狂热', 'DEFCON +1 · 抽 1 牌', '#ffcc00');
+    sfx('card');
+  };
+
+  // #50: We Will Bury You - DEFCON -1, USSR +VP
+  effects[50] = function(card, player){
+    if(window.G.flags.cubanMissileCrisis || window.G.flags.glassHouse) {
+      showEffect('我们要埋葬你们', '已被其他事件抵消', '#c8102e');
+      return;
+    }
+    changeDefcon(-1);
+    const vp = 5 - window.G.defcon;
+    addVP('ussr', vp);
+    showEffect('我们要埋葬你们', `DEFCON -1 · 苏联 +${vp} VP`, '#c8102e');
+    shake(4);
+    sfx('defcon');
+  };
+
+  // #51: Brezhnev Doctrine - USSR Ops +1 this turn
+  effects[51] = function(card, player){
+    window.G.flags.brezhnev = true;
+    showEffect('勃列日涅夫主义', '苏联本回合 Ops +1', '#c8102e');
+    sfx('card');
+  };
+
+  // #52: Portuguese Empire Crumbles - +2 USSR to Angola, Mozambique
+  effects[52] = function(card, player){
+    addInf('ussr', 'angola', 2);
+    addInf('ussr', 'mozambique', 2);
+    showEffect('葡萄牙帝国崩溃', '安哥拉、莫桑比克各 +2 苏联', '#c8102e');
+    sfx('ops');
+  };
+
+  // #53: South African Unrest - +2 USSR to SA or +1 SA + 1 adjacent
+  effects[53] = function(card, player){
+    addInf('ussr', 'south_africa', 2);
+    showEffect('南非动荡', '南非 +2 苏联', '#c8102e');
+    sfx('ops');
+  };
+
+  // #54: Allende - +2 USSR to Chile
+  effects[54] = function(card, player){
+    addInf('ussr', 'chile', 2);
+    showEffect('阿连德', '智利 +2 苏联', '#c8102e');
+    sfx('ops');
+  };
+
+  // #55: Willy Brandt - +1 USSR to West Germany, cancel NATO
+  effects[55] = function(card, player){
+    addInf('ussr', 'west_germany', 1);
+    window.G.flags.willyBrandt = true;
+    showEffect('维利·勃兰特', '西德 +1 苏联 · 取消北约效果', '#c8102e');
+    sfx('ops');
+  };
+
+  // #56: Muslim Revolution - +2 USSR to Middle East country
+  effects[56] = function(card, player){
+    const me = ['egypt','iran','libya','iraq','saudi_arabia','syria','jordan','sudan'];
+    const t = me[Math.floor(Math.random() * me.length)];
+    addInf('ussr', t, 2);
+    showEffect('穆斯林革命', `${window.COUNTRIES[t]?.zh} +2 苏联`, '#c8102e');
+    sfx('ops');
+  };
+
+  // #57: ABM Treaty - DEFCON +1
+  effects[57] = function(card, player){
+    changeDefcon(1);
+    showEffect('反导条约', 'DEFCON +1', '#ffcc00');
+    sfx('defcon');
+  };
+
+  // #58: Cultural Revolution - China card to US
+  effects[58] = function(card, player){
+    if(window.G.chinaCardOwner === 'ussr'){
+      window.G.chinaCardOwner = 'us';
+      showEffect('文化大革命', '中国牌转美国', '#c8102e');
+    } else {
+      addVP('ussr', 2);
+      showEffect('文化大革命', '美国已持牌 · 苏联 +2 VP', '#c8102e');
+    }
+    sfx('card');
+  };
+
+  // #59: Flower Power - USSR +2 VP on US war card
+  effects[59] = function(card, player){
+    window.G.flags.flowerPower = true;
+    showEffect('花之力量', '美国战争卡触发时苏联 +2 VP', '#c8102e');
+    sfx('card');
+  };
+
+  // #60: U2 Incident - USSR +1 VP, +1 if UN Intervention
+  effects[60] = function(card, player){
+    addVP('ussr', 1);
+    showEffect('U-2 事件', '苏联 +1 VP', '#c8102e');
+    sfx('score');
+  };
+
+  // #61: OPEC - USSR +1 VP per ME country controlled
+  effects[61] = function(card, player){
+    const me = ['egypt','iran','libya','iraq','saudi_arabia','gulf_states','venezuela'];
+    let vp = 0;
+    for(const c of me){
+      if(isControlled('ussr', c)) vp++;
+    }
+    addVP('ussr', vp);
+    showEffect('欧佩克', `苏联 +${vp} VP`, '#c8102e');
+    sfx('score');
+  };
+
+  // #62: Lone Gunman - USSR uses Ops value
+  effects[62] = function(card, player){
+    showEffect('独狼', '苏联展示手牌 · 可用 Ops', '#c8102e');
+    sfx('card');
+  };
+
+  // #63: Colonial Rear Guards - +1 US to 4 Africa/SE Asia countries
+  effects[63] = function(card, player){
+    const targets = ['angola','algeria','sudan','libya','congo','zambia','vietnam','laos','myanmar'];
+    let n = 0;
+    for(const c of targets){
+      if(n >= 4) break;
+      addInf('us', c, 1); n++;
+    }
+    showEffect('殖民后卫', `+${n} 美国影响力`, '#4a7fb5');
+    sfx('ops');
+  };
+
+  // #64: Panama Canal Returned - +1 US to Panama, Costa Rica, Venezuela
+  effects[64] = function(card, player){
+    addInf('us', 'panama', 1);
+    addInf('us', 'costa_rica', 1);
+    addInf('us', 'venezuela', 1);
+    showEffect('巴拿马运河', '巴拿马、哥斯达黎加、委内瑞拉各 +1 美国', '#4a7fb5');
+    sfx('ops');
+  };
+
+  // #65: Camp David Accords - +1 US to Israel, +1 USSR to Egypt, USSR +1 VP
+  effects[65] = function(card, player){
+    addInf('us', 'israel', 1);
+    addInf('ussr', 'egypt', 1);
+    addVP('ussr', 1);
+    showEffect('戴维营协议', '以色列 +1 美国 · 埃及 +1 苏联 · 苏联 +1 VP', '#ffcc00');
+    sfx('ops');
+  };
+
+  // #66: Junta (US version) - same as 47 but for US
+  effects[66] = function(card, player){
+    const roll = rollDie(0);
+    if(roll <= 3){
+      const latam = ['venezuela','cuba','mexico','nicaragua','panama','costa_rica','bolivia','argentina','chile','peru','colombia'];
+      const t = latam[Math.floor(Math.random() * latam.length)];
+      addInf('us', t, 2);
+      showEffect('军政府', `骰 ${roll} · ${window.COUNTRIES[t]?.zh} +2 美国`, '#4a7fb5');
+    } else {
+      const africa = ['angola','zambia','mozambique','congo','zimbabwe','sudan','egypt','libya'];
+      const t = africa[Math.floor(Math.random() * africa.length)];
+      addInf('us', t, 2);
+      showEffect('军政府', `骰 ${roll} · ${window.COUNTRIES[t]?.zh} +2 美国`, '#4a7fb5');
+    }
+    sfx('roll');
+  };
+
+  // #67: China Card (USSR version) - China card to US
+  effects[67] = function(card, player){
+    if(window.G.chinaCardOwner === 'ussr'){
+      window.G.chinaCardOwner = 'us';
+      showEffect('中国牌', '转美国（面朝下）', '#c8102e');
+    } else {
+      addVP('ussr', 2);
+      showEffect('中国牌', '美国已持牌 · 苏联 +2 VP', '#c8102e');
+    }
+    sfx('card');
+  };
+
+  // #68: John Paul II - +1 US to Poland, +1 USSR to West Germany, US +1 VP
+  effects[68] = function(card, player){
+    addInf('us', 'poland', 1);
+    addInf('ussr', 'west_germany', 1);
+    addVP('us', 1);
+    showEffect('教皇若望保禄二世', '波兰 +1 美国 · 西德 +1 苏联 · 美国 +1 VP', '#ffcc00');
+    sfx('ops');
+  };
+
+  // #69: Space Race (USSR version) - draw card from discard
+  effects[69] = function(card, player){
+    showEffect('太空竞赛', '苏联领先 · 从弃牌堆取卡', '#c8102e');
+    sfx('card');
+  };
+
+  // #70: Space Race (US version) - US +1 VP per US-controlled battleground
+  effects[70] = function(card, player){
+    const me = ['iran','iraq','saudi_arabia','syria','israel','libya','egypt','jordan','sudan'];
+    let vp = 0;
+    for(const c of me){
+      if(isControlled('us', c) && window.COUNTRIES[c]?.battleground) vp++;
+    }
+    addVP('us', vp);
+    showEffect('太空竞赛', `美国 +${vp} VP`, '#4a7fb5');
+    sfx('score');
+  };
+
+  // #71: China Card (US version) - China card to USSR
+  effects[71] = function(card, player){
+    if(window.G.chinaCardOwner === 'us'){
+      window.G.chinaCardOwner = 'ussr';
+      showEffect('中国牌', '转苏联', '#4a7fb5');
+    } else {
+      addInf('us', 'china', 4);
+      showEffect('中国牌', '苏联已持牌 · 亚洲 +4 美国', '#4a7fb5');
+    }
+    sfx('card');
+  };
+
+  // #72: Mossad - +1 US to Egypt, remove all USSR from Egypt
+  effects[72] = function(card, player){
+    remInf('ussr', 'egypt', getInf('ussr', 'egypt'));
+    addInf('us', 'egypt', 1);
+    showEffect('摩萨德', '埃及：移除苏联 · +1 美国', '#4a7fb5');
+    sfx('ops');
+  };
+
+  // #73: South Korea - remove 1 US from SK, +1 USSR to SK
+  effects[73] = function(card, player){
+    remInf('us', 'south_korea', getInf('us', 'south_korea'));
+    addInf('ussr', 'south_korea', 1);
+    showEffect('韩国', '韩国：移除美国 · +1 苏联', '#c8102e');
+    sfx('ops');
+  };
+
+  // #74: Anti-American Uprising - -4 USSR from non-Europe countries
+  effects[74] = function(card, player){
+    const targets = Object.keys(window.COUNTRIES).filter(k => {
+      const c = window.COUNTRIES[k];
+      return c.region !== 'europe' && !c.superpower;
+    });
+    let n = 0;
+    for(const c of targets){
+      if(n >= 4) break;
+      remInf('ussr', c, getInf('ussr', c));
+      n++;
+    }
+    showEffect('反美起义', `移除 ${n} 国苏联影响力`, '#4a7fb5');
+    sfx('ops');
+  };
+
+  // #75: Central America - +3 USSR to CA countries
+  effects[75] = function(card, player){
+    const ca = ['mexico','guatemala','honduras','nicaragua','costa_rica','panama','cuba'];
+    let n = 0;
+    for(const c of ca){
+      if(n >= 3) break;
+      addInf('ussr', c, 1);
+      n++;
+    }
+    showEffect('中美动荡', `+${n} 苏联影响力`, '#c8102e');
+    sfx('ops');
+  };
+
+  // #76: China Card (USSR v2) - China card to US
+  effects[76] = function(card, player){
+    if(window.G.chinaCardOwner === 'ussr'){
+      window.G.chinaCardOwner = 'us';
+      showEffect('中国牌', '转美国（面朝上）', '#c8102e');
+    } else {
+      addInf('us', 'china', 4);
+      showEffect('中国牌', '美国已持牌 · 亚洲 +4 美国', '#4a7fb5');
+    }
+    sfx('card');
+  };
+
+  // #77: The Glass House - US discards and redraws
+  effects[77] = function(card, player){
+    window.G.flags.glassHouse = true;
+    showEffect('玻璃屋', '美国可弃牌重抽', '#4a7fb5');
+    sfx('card');
+  };
+
+  // #78: Latin America - US +1 VP per US-controlled battleground in LA
+  effects[78] = function(card, player){
+    const la = ['venezuela','cuba','mexico','nicaragua','panama','costa_rica','bolivia','argentina','chile','peru','colombia'];
+    let vp = 0;
+    for(const c of la){
+      if(isControlled('us', c) && window.COUNTRIES[c]?.battleground) vp++;
+    }
+    addVP('us', vp);
+    showEffect('拉丁美洲', `美国 +${vp} VP`, '#4a7fb5');
+    sfx('score');
+  };
+
+  // #79-81: Scoring cards (handled by effects.scoring)
+
+  // #82: Iranian Hostage Crisis - +2 USSR to Iran, -4 US from Iran
+  effects[82] = function(card, player){
+    remInf('us', 'iran', getInf('us', 'iran'));
+    addInf('ussr', 'iran', 2);
+    showEffect('伊朗人质危机', '伊朗：移除美国 · +2 苏联', '#c8102e');
+    sfx('ops');
+  };
+
+  // #83: The Iron Lady - +1 USSR to UK, -1 US to UK, US +1 VP
+  effects[83] = function(card, player){
+    remInf('us', 'uk', getInf('us', 'uk'));
+    addInf('ussr', 'uk', 1);
+    addVP('us', 1);
+    showEffect('铁娘子', '英国：移除美国 · +1 苏联 · 美国 +1 VP', '#c8102e');
+    sfx('ops');
+  };
+
+  // #84: Sandstorm - US +1 VP per 2 USSR in Libya
+  effects[84] = function(card, player){
+    const vp = Math.floor(getInf('ussr', 'libya') / 2);
+    addVP('us', vp);
+    showEffect('沙暴', `利比亚每 2 苏联影响力美国 +1 VP · +${vp} VP`, '#4a7fb5');
+    sfx('score');
+  };
+
+  // #85: Space Race (US v2) - draw from discard
+  effects[85] = function(card, player){
+    showEffect('太空竞赛', '美国领先 · 从弃牌堆取卡', '#4a7fb5');
+    sfx('card');
+  };
+
+  // #86: Reagon Doctrine - US plays 8 cards this turn
+  effects[86] = function(card, player){
+    window.G.flags.reagon = true;
+    showEffect('里根主义', '美国本回合可打 8 张牌', '#4a7fb5');
+    sfx('card');
+  };
+
+  // #87: The Reformer - +4 USSR to Europe (6 if USSR ahead)
+  effects[87] = function(card, player){
+    const vp = window.G.vp.ussr > window.G.vp.us ? 6 : 4;
+    const ee = ['east_germany','poland','czechoslovakia','hungary','yugoslavia','romania','bulgaria','austria','italy','greece','turkey','spain_pt'];
+    let n = 0;
+    for(const c of ee){
+      if(n >= vp) break;
+      addInf('ussr', c, 1);
+      n++;
+    }
+    window.G.flags.reformer = true;
+    showEffect('改革者', `东欧 +${n} 苏联影响力`, '#c8102e');
+    sfx('ops');
+  };
+
+  // #88: Lebanon - -2 US from Lebanon and ME
+  effects[88] = function(card, player){
+    remInf('us', 'lebanon', getInf('us', 'lebanon'));
+    remInf('us', 'israel', 1);
+    showEffect('黎巴嫩内战', '黎巴嫩：移除美国 · 以色列 -1 美国', '#c8102e');
+    sfx('ops');
+  };
+
+  // #89: Glasnost - DEFCON -1, US +2 VP
+  effects[89] = function(card, player){
+    changeDefcon(-1);
+    addVP('us', 2);
+    showEffect('公开性', 'DEFCON -1 · 美国 +2 VP', '#c8102e');
+    shake(4);
+    sfx('defcon');
+  };
+
+  // #90: Perestroika - DEFCON +1, USSR +2 VP
+  effects[90] = function(card, player){
+    changeDefcon(1);
+    addVP('ussr', 2);
+    showEffect('重建', 'DEFCON +1 · 苏联 +2 VP', '#c8102e');
+    sfx('defcon');
+  };
+
+  // #91: Central America Unrest - -all US from Nicaragua, free coup attempt
+  effects[91] = function(card, player){
+    remInf('us', 'nicaragua', getInf('us', 'nicaragua'));
+    showEffect('中美动荡', '尼加拉瓜：移除美国 · 可发动政变', '#c8102e');
+    sfx('ops');
+  };
+
+  // #92: Terrorism - opponent discards 1 card (2 if Iranian Hostage Crisis played)
+  effects[92] = function(card, player){
+    const opp = opponent(player);
+    const h = window.G.hand[opp];
+    if(h.length){
+      const count = window.G.flags.iranianHostage ? 2 : 1;
+      for(let i = 0; i < count && h.length; i++){
+        const idx = Math.floor(Math.random() * h.length);
+        const c = h.splice(idx, 1)[0];
+        window.discardCard && window.discardCard(c);
+      }
+      showEffect('恐怖主义', `${opp==='us'?'美国':'苏联'} 弃 ${count} 张牌`, '#ffcc00');
+    }
+    sfx('card');
+  };
+
+  // #93: Anti-American Rally - US realignment rolls -1 this turn
+  effects[93] = function(card, player){
+    window.G.flags.antiAmerican = true;
+    showEffect('反美集会', '美国本回合再平衡掷骰 -1', '#c8102e');
+    sfx('card');
+  };
+
+  // #94: Regional Tensions - US designates region, USSR can't add influence
+  effects[94] = function(card, player){
+    window.G.flags.regionalTensions = true;
+    showEffect('地区紧张', '美国指定区域 · 苏联不能加影响力', '#4a7fb5');
+    sfx('card');
+  };
+
+  // #95: Latin America Crisis - US discards 3+ Ops or USSR doubles influence in LA
+  effects[95] = function(card, player){
+    window.G.flags.latinCrisis = true;
+    showEffect('拉丁美洲危机', '美国需弃 3+ Ops 或苏联翻倍拉美影响力', '#c8102e');
+    sfx('card');
+  };
+
+  // #96: German Reunification - +3 US to West Germany, cancel Willy Brandt
+  effects[96] = function(card, player){
+    addInf('us', 'west_germany', 3);
+    window.G.flags.willyBrandt = false;
+    showEffect('德国统一', '西德 +3 美国 · 取消勃兰特效果', '#4a7fb5');
+    sfx('ops');
+  };
+
+  // #97: Cold War Ends - US +1 VP, cancel Flower Power
+  effects[97] = function(card, player){
+    addVP('us', 1);
+    window.G.flags.flowerPower = false;
+    showEffect('冷战结束', '美国 +1 VP · 取消花之力量', '#4a7fb5');
+    sfx('score');
+  };
+
+  // #98: Defection - US reveals hand, USSR discards 1
+  effects[98] = function(card, player){
+    if(window.G.hand.ussr.length){
+      const idx = Math.floor(Math.random() * window.G.hand.ussr.length);
+      const c = window.G.hand.ussr.splice(idx, 1)[0];
+      window.discardCard && window.discardCard(c);
+      showEffect('叛逃', `苏联弃掉 ${c.zh}`, '#4a7fb5');
+    }
+    sfx('card');
+  };
+
+  // #99: Eastern Europe - USSR +1 VP, -1 US from 3 Western Europe countries
+  effects[99] = function(card, player){
+    addVP('ussr', 1);
+    const we = ['france','west_germany','italy','austria','greece','turkey','spain_pt','norway','sweden','denmark','finland','benelux'];
+    let n = 0;
+    for(const c of we){
+      if(n >= 3) break;
+      remInf('us', c, 1);
+      n++;
+    }
+    showEffect('东欧', '苏联 +1 VP · 西欧 -1 美国', '#c8102e');
+    sfx('score');
+  };
+
+  // #100: Chess Game - if DEFCON 2, end game, opponent +6 VP
+  effects[100] = function(card, player){
+    if(window.G.defcon === 2){
+      window.declareWinner && window.declareWinner(opponent(player), '国际象棋！');
+    } else {
+      showEffect('国际象棋', 'DEFCON 不为 2 · 无效果', '#ffcc00');
+    }
+    sfx('card');
+  };
+
+  // #101: Solidarity - +3 US to Poland, requires John Paul II
+  effects[101] = function(card, player){
+    if(window.G.flags.johnPaul){
+      addInf('us', 'poland', 3);
+      showEffect('团结工会', '波兰 +3 美国', '#4a7fb5');
+    } else {
+      showEffect('团结工会', '需要先打出教皇若望保禄二世', '#ffcc00');
+    }
+    sfx('ops');
+  };
+
+  // #102: Middle East War - attack Iran or Iraq
+  effects[102] = function(card, player){
+    const t = Math.random() < 0.5 ? 'iran' : 'iraq';
+    const opp = opponent(player);
+    const roll = rollDie(0);
+    if(roll >= 4){
+      addVP(player, 2);
+      remInf(opp, t, getInf(opp, t));
+      addInf(player, t, 1);
+      showEffect('中东战争', `攻击 ${window.COUNTRIES[t]?.zh} · 骰 ${roll} · +2 VP`, '#ffcc00');
+      flash('#ffcc00', 10);
+    } else {
+      showEffect('中东战争', `攻击 ${window.COUNTRIES[t]?.zh} · 骰 ${roll} · 失败`, '#ff6600');
+    }
+    sfx('roll');
+  };
+
+  // #103: Defectors (US version) - US +1 VP, USSR discards 1
+  // Already implemented above
+
   /* ---------- 主入口 ---------- */
   function play(card, player){
     const g = window.G;
