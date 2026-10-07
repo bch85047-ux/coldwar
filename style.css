@@ -1591,6 +1591,51 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 #netBadge.off { color: #e8455c; border-color: rgba(232,69,92,.35); background: rgba(232,69,92,.08); }
 #netBadge.off::before { background: #e8455c; animation: none; }
 
+/* ---------- 事件效果显示 ---------- */
+.event-effect {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: rgba(10,16,24,.92);
+  border: 2px solid rgba(201,169,106,.4);
+  border-radius: 6px;
+  padding: 14px 24px;
+  text-align: center;
+  pointer-events: none;
+  animation: effectPop .4s ease-out;
+  box-shadow: 0 4px 20px rgba(0,0,0,.6);
+}
+.event-effect .ef-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--gold-2);
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+.event-effect .ef-detail {
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.event-effect .dice {
+  display: inline-block;
+  padding: 4px 10px;
+  margin: 0 3px;
+  border-radius: 3px;
+  font-weight: 800;
+  font-size: 18px;
+}
+.event-effect .dice.good { background: rgba(74,127,181,.3); color: var(--us-bright); }
+.event-effect .dice.bad { background: rgba(200,16,46,.3); color: var(--ussr-bright); }
+.event-effect .dice small { font-size: 10px; opacity: .7; }
+@keyframes effectPop {
+  0% { transform: translateX(-50%) scale(.8); opacity: 0; }
+  50% { transform: translateX(-50%) scale(1.05); }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
 /* ---------- Ops 操作面板（放 Ops 阶段浮在地图右下）---------- */
 .ops-panel {
   position: absolute;

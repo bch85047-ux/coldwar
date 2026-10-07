@@ -38,7 +38,7 @@ function playCard(card, mode){
     else toast('本卡没有可放置的 Ops');
   } else {
     // 事件：先把 pending 卡真正移出手牌，再结算（否则事件会二次操作）
-    playEvent(card, player);
+    EVENT.play(card, player);
     g.pendingOpsCard = null; g.pendingOps = 0;
     afterCardPlayed();
   }
@@ -207,7 +207,7 @@ function onActionBtn(zone){
   if(zone === 'cancel'){ hideOpsPanel(); UI.returnPendingCard(true); g.phase = 'playEvent'; UI.render(); return; }
   if(zone === 'event'){
     hideOpsPanel();
-    playEvent(g.pendingOpsCard, g.activePlayer);
+    EVENT.play(g.pendingOpsCard, g.activePlayer);
     g.pendingOpsCard = null; g.pendingOps = 0;
     afterCardPlayed();
     return;
@@ -386,7 +386,7 @@ function aiTurn(){
 
   if(mode === 'ops'){ g.phase = 'playOps'; setTimeout(() => aiDoOps(side, card), 500); }
   else if(mode === 'space'){ applySpaceStep(side, spaceStepOf(card, side)); g.pendingOpsCard = null; afterCardPlayed(); }
-  else { playEvent(card, side); g.pendingOpsCard = null; afterCardPlayed(); }
+  else { EVENT.play(card, side); g.pendingOpsCard = null; afterCardPlayed(); }
 }
 
 function scoreAIMove(card, side){
