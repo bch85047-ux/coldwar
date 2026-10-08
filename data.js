@@ -375,19 +375,19 @@ const CARDS = [
   {n:102, en:'Iran-Iraq War', zh:'两伊战争', side:'neutral', ops:2, period:'late',
    text:'Iran invades Iraq or vice versa (player\'s choice). Roll a die and subtract (-1) from the die roll for every enemy controlled country adjacent to the target of the invasion (Iran or Iraq). On a modified die roll of 4-6, the player receives 2 VP and replaces all the opponent\'s Influence in the target country with their Influence. The player adds 2 to its Military Operations Track.'},
   {n:104, en:'The Cambridge Five', zh:'剑桥五杰', side:'ussr', ops:2, period:'late',
-   text:'苏方 +2 VP。'},
+   text:'The USSR receives 2 VP. This card requires prior play of the "#98 – Aldrich Ames" Event in order to be played as an Event.'},
   {n:105, en:'Special Relationship', zh:'特殊关系', side:'us', ops:2, period:'late',
-   text:'美方 +2 VP。'},
+   text:'The US receives 2 VP. This card requires prior play of the "#104 – The Cambridge Five" Event in order to be played as an Event.'},
   {n:106, en:'NORAD', zh:'北美防空司令部', side:'us', ops:3, period:'late',
-   text:'DEFCON +1（上限 4）。美方政变 +1 掷骰。'},
+   text:'Improve the DEFCON level by 1 (not above 4). The US receives +1 to their Coup Attempts for the remainder of the turn.'},
   {n:107, en:'Che', zh:'切·格瓦拉', side:'ussr', ops:3, period:'late',
-   text:'古巴 +1 苏联。苏方可在拉美 +1。'},
+   text:'Add 1 USSR Influence to Cuba. The USSR may add 1 USSR Influence to a country in Latin America using this card.'},
   {n:108, en:'Our Man in Tehran', zh:'我们在德黑兰的人', side:'us', ops:2, period:'late',
-   text:'美方 +1 VP。伊朗 +1 美方。'},
+   text:'The US receives 1 VP. Add 1 US Influence to Iran.'},
   {n:109, en:'Yuri and Samantha', zh:'尤里与萨曼莎', side:'ussr', ops:2, period:'late',
-   text:'苏方 +2 VP。'},
+   text:'The USSR receives 2 VP. The USSR may look at the US\'s hand of cards.'},
   {n:110, en:'AWACS Sale to Saudis', zh:'预警机售沙特', side:'us', ops:3, period:'late',
-   text:'沙特 +2 美方。'}
+   text:'Add 2 US Influence to the Gulf States.'}
 ];
 
 // 按编号排序

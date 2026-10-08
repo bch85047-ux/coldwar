@@ -1132,8 +1132,68 @@ const EVENT = (() => {
     sfx('roll');
   };
 
-  // #103: Defectors (US version) - US +1 VP, USSR discards 1
-  // Already implemented above
+  // #104: The Cambridge Five - USSR +2 VP, requires Aldrich Ames
+  effects[104] = function(card, player){
+    if(!window.G.flags.aldrichAmes){
+      showEffect('剑桥五杰', '需要先打出奥尔德里奇·艾姆斯', '#ffcc00');
+      return;
+    }
+    addVP('ussr', 2);
+    window.G.flags.cambridgeFive = true;
+    showEffect('剑桥五杰', '苏联 +2 VP', '#c8102e');
+    sfx('score');
+  };
+
+  // #105: Special Relationship - US +2 VP, requires Cambridge Five
+  effects[105] = function(card, player){
+    if(!window.G.flags.cambridgeFive){
+      showEffect('特殊关系', '需要先打出剑桥五杰', '#ffcc00');
+      return;
+    }
+    addVP('us', 2);
+    window.G.flags.specialRelationship = true;
+    showEffect('特殊关系', '美国 +2 VP', '#4a7fb5');
+    sfx('score');
+  };
+
+  // #106: NORAD - DEFCON +1, US coup +1 this turn
+  effects[106] = function(card, player){
+    changeDefcon(1);
+    window.G.flags.norad = true;
+    showEffect('北美防空司令部', 'DEFCON +1 · 美国政变 +1', '#4a7fb5');
+    sfx('defcon');
+  };
+
+  // #107: Che - Cuba +1 USSR, USSR can add 1 to Latin America
+  effects[107] = function(card, player){
+    addInf('ussr', 'cuba', 1);
+    window.G.flags.che = true;
+    showEffect('切·格瓦拉', '古巴 +1 苏联 · 可拉美 +1', '#c8102e');
+    sfx('ops');
+  };
+
+  // #108: Our Man in Tehran - US +1 VP, Iran +1 US
+  effects[108] = function(card, player){
+    addVP('us', 1);
+    addInf('us', 'iran', 1);
+    showEffect('我们在德黑兰的人', '美国 +1 VP · 伊朗 +1 美国', '#4a7fb5');
+    sfx('score');
+  };
+
+  // #109: Yuri and Samantha - USSR +2 VP, look at US hand
+  effects[109] = function(card, player){
+    addVP('ussr', 2);
+    window.G.flags.yuriSamantha = true;
+    showEffect('尤里与萨曼莎', '苏联 +2 VP · 可看美国手牌', '#c8102e');
+    sfx('score');
+  };
+
+  // #110: AWACS Sale to Saudis - Gulf States +2 US
+  effects[110] = function(card, player){
+    addInf('us', 'gulf_states', 2);
+    showEffect('预警机售沙特', '海湾国家 +2 美国', '#4a7fb5');
+    sfx('ops');
+  };
 
   /* ---------- 主入口 ---------- */
   function play(card, player){
